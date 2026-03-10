@@ -1,0 +1,22 @@
+{
+    "logs": [
+        {
+            "id": "use_20260310113559_b3909c",
+            "coupon_plan_id": "plan_seed_001",
+            "user_id": "test-user",
+            "display_name": "Fuji",
+            "used_at": "2026-03-10T11:35:59+09:00",
+            "discount_rate": 0.2143,
+            "discounted_price": 943
+        },
+        {
+            "id": "use_20260310131541_c15e9e",
+            "coupon_plan_id": "plan_seed_001",
+            "user_id": "browser-guest",
+            "display_name": "guest",
+            "used_at": "2026-03-10T13:15:41+09:00",
+            "discount_rate": 0.1857,
+            "discounted_price": 977
+        }
+    ]
+}

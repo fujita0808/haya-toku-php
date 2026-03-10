@@ -1,0 +1,50 @@
+{
+    "plans": [
+        {
+            "id": "plan_20260310131735_570719",
+            "title": "🍊ランチ",
+            "description": "大人気の🍊ランチが、早得に登場！\r\n善は急げ！",
+            "status": "active",
+            "product_name": "対象商品",
+            "unit_price": 3500,
+            "cost_rate": 0.35,
+            "initial_discount_rate": 0.3,
+            "min_discount_rate": 0.1,
+            "decay_interval_minutes": 180,
+            "start_at": "2026-03-10T00:00",
+            "end_at": "2026-04-10T23:59",
+            "target_revenue": 100000,
+            "rules": [
+                "店頭でこの画面を提示",
+                "1会計1回まで",
+                "他クーポン併用不可"
+            ],
+            "notes": "",
+            "updated_at": "2026-03-10T13:17:55+09:00",
+            "created_at": "2026-03-10T13:16:22+09:00"
+        },
+        {
+            "id": "plan_seed_001",
+            "title": "今日の早得",
+            "description": "開始直後ほど割引率が高く、時間経過で最低割引率までゆるやかに減衰する HAYA-TOKU PoC 用クーポンです。",
+            "status": "active",
+            "product_name": "オレンジキャンペーン商品",
+            "unit_price": 1200,
+            "cost_rate": 0.35,
+            "initial_discount_rate": 0.3,
+            "min_discount_rate": 0.1,
+            "decay_interval_minutes": 180,
+            "start_at": "2026-03-10 00:00:00",
+            "end_at": "2026-03-10 23:59:59",
+            "target_revenue": 100000,
+            "rules": [
+                "店頭でこの画面を提示",
+                "1会計1回まで",
+                "他クーポン併用不可"
+            ],
+            "notes": "PoC用サンプル",
+            "updated_at": "2026-03-10T00:00:00+09:00",
+            "created_at": "2026-03-10T00:00:00+09:00"
+        }
+    ]
+}
