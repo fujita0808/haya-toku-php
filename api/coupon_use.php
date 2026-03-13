@@ -1,34 +1,115 @@
 <?php
+
 require_once __DIR__ . '/../lib/bootstrap.php';
 
-if (request_method() !== 'POST') {
-    json_response(['ok' => false, 'message' => 'Method Not Allowed'], 405);
+header('Content-Type: application/json; charset=utf-8');
+
+$db = db();
+
+/**
+ * GET / POST 両対応
+ */
+$couponCode = $_POST['couponId'] ?? ($_GET['couponId'] ?? null);
+
+if (!$couponCode) {
+    echo json_encode([
+        'ok' => false,
+        'error' => 'couponId is required'
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
-$plan = find_current_plan();
-if (!$plan) {
-    json_response(['ok' => false, 'message' => '有効なクーポンがありません。'], 404);
-}
+/**
+ * coupons から対象を取得
+ */
+$stmt = $db->prepare("
+  SELECT *
+  FROM coupons
+  WHERE coupon_code = :coupon_code
+  LIMIT 1
+");
 
-$input = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
-$displayName = trim((string)($input['displayName'] ?? 'guest'));
-$userId = trim((string)($input['userId'] ?? 'browser-guest'));
-$currentRate = calculate_discount_rate($plan);
-
-$log = [
-    'id' => 'use_' . date('YmdHis') . '_' . bin2hex(random_bytes(3)),
-    'coupon_plan_id' => $plan['id'],
-    'user_id' => $userId,
-    'display_name' => $displayName,
-    'used_at' => now_iso(),
-    'discount_rate' => round($currentRate, 4),
-    'discounted_price' => (int)round($plan['unit_price'] * (1 - $currentRate)),
-];
-
-append_usage_log($log);
-
-json_response([
-    'ok' => true,
-    'message' => 'クーポン利用を記録しました。',
-    'used' => $log,
+$stmt->execute([
+    ':coupon_code' => $couponCode
 ]);
+
+$coupon = $stmt->fetch(PDO::FETCH_ASSOC);
+
+if (!$coupon) {
+    echo json_encode([
+        'ok' => false,
+        'error' => 'Coupon not found'
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if (($coupon['status'] ?? '') === 'used') {
+    echo json_encode([
+        'ok' => false,
+        'error' => 'Coupon already used'
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$logId = bin2hex(random_bytes(16));
+$now = date('c');
+
+/**
+ * usage_logs に保存
+ * 今回は coupon_id ベース
+ */
+$insert = $db->prepare("
+  INSERT INTO usage_logs (
+    id,
+    coupon_id,
+    user_id,
+    display_name,
+    discount_rate,
+    discounted_price,
+    used_at
+  ) VALUES (
+    :id,
+    :coupon_id,
+    :user_id,
+    :display_name,
+    :discount_rate,
+    :discounted_price,
+    :used_at
+  )
+");
+
+$insert->execute([
+    ':id' => $logId,
+    ':coupon_id' => $coupon['id'],
+    ':user_id' => null,
+    ':display_name' => null,
+    ':discount_rate' => $coupon['discount_value'],
+    ':discounted_price' => null,
+    ':used_at' => $now,
+]);
+
+/**
+ * coupons を used に更新
+ */
+$update = $db->prepare("
+  UPDATE coupons
+  SET status = :status,
+      used_at = :used_at,
+      updated_at = :updated_at
+  WHERE id = :id
+");
+
+$update->execute([
+    ':status' => 'used',
+    ':used_at' => $now,
+    ':updated_at' => $now,
+    ':id' => $coupon['id'],
+]);
+
+echo json_encode([
+    'ok' => true,
+    'message' => 'Coupon used successfully',
+    'couponId' => $couponCode,
+    'coupon_id' => $coupon['id'],
+    'used_at' => $now
+], JSON_UNESCAPED_UNICODE);
