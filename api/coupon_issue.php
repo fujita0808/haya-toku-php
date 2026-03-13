@@ -1,6 +1,8 @@
 <?php
+declare(strict_types=1);
 
-require_once __DIR__ . '/../lib/bootstrap.php';
+require_once __DIR__ . '/../lib/api_headers.php';
+require_once __DIR__ . '/../lib/db.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
