@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS coupon_plans (
 
 CREATE TABLE IF NOT EXISTS usage_logs (
   id TEXT PRIMARY KEY,
-  coupon_plan_id TEXT,
+  coupon_id TEXT,
   user_id TEXT,
   display_name TEXT,
   discount_rate NUMERIC,
