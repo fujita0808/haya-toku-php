@@ -31,8 +31,13 @@ SELECT
     c.issued_at,
     c.used_at,
     p.title,
+    p.status,
+    p.start_at,
+    p.end_at,
     p.description,
-    p.discount_rate
+    p.initial_discount_rate AS discount_rate,
+    p.min_discount_rate,
+    p.decay_interval_minutes
 FROM coupons c
 JOIN coupon_plans p
   ON p.id = c.coupon_plan_id
@@ -64,7 +69,12 @@ SQL;
             'coupon_plan_id' => $coupon['coupon_plan_id'],
             'title' => $coupon['title'],
             'description' => $coupon['description'],
+            'status' => $coupon['status'],
+            'start_at' => $coupon['start_at'],
+            'end_at' => $coupon['end_at'],
             'discount_rate' => (int)$coupon['discount_rate'],
+            'min_discount_rate' => (int)$coupon['min_discount_rate'],
+            'decay_interval_minutes' => (int)$coupon['decay_interval_minutes'],
             'issued_at' => $coupon['issued_at'],
             'used_at' => $coupon['used_at'],
             'is_used' => !empty($coupon['used_at'])
