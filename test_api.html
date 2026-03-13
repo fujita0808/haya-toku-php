@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>HAYA-TOKU API test</title>
+</head>
+
+<body>
+
+<h1>HAYA-TOKU API TEST</h1>
+
+<button onclick="issue()">クーポン発行</button>
+
+<button onclick="getCoupon()">クーポン取得</button>
+
+<button onclick="useCoupon()">クーポン使用</button>
+
+<pre id="result"></pre>
+
+<script>
+const API = "https://haya-toku-php.onrender.com/api";
+let couponId = null;
+
+function show(data) {
+  document.getElementById("result").textContent =
+    typeof data === "string" ? data : JSON.stringify(data, null, 2);
+}
+
+async function issue() {
+  try {
+    show("発行API呼び出し中...");
+    const res = await fetch(API + "/coupon_issue.php");
+    const json = await res.json();
+    couponId = json.couponId ?? null;
+    show(json);
+  } catch (e) {
+    show("issue エラー: " + e.message);
+    console.error(e);
+  }
+}
+
+async function getCoupon() {
+  try {
+    if (!couponId) {
+      show("couponId がまだありません。先に「クーポン発行」を押してください。");
+      return;
+    }
+    show("取得API呼び出し中...");
+    const res = await fetch(API + "/coupon_get.php?couponId=" + encodeURIComponent(couponId));
+    const json = await res.json();
+    show(json);
+  } catch (e) {
+    show("getCoupon エラー: " + e.message);
+    console.error(e);
+  }
+}
+
+async function useCoupon() {
+  try {
+    if (!couponId) {
+      show("couponId がまだありません。先に「クーポン発行」を押してください。");
+      return;
+    }
+    show("使用API呼び出し中...");
+    const res = await fetch(API + "/coupon_use.php?couponId=" + encodeURIComponent(couponId));
+    const json = await res.json();
+    show(json);
+  } catch (e) {
+    show("useCoupon エラー: " + e.message);
+    console.error(e);
+  }
+}
+</script>
+
+</body>
+</html>
