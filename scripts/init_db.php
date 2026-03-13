@@ -33,7 +33,20 @@ CREATE TABLE IF NOT EXISTS usage_logs (
   discounted_price INTEGER,
   used_at TIMESTAMPTZ
 );
-
+  
+CREATE TABLE IF NOT EXISTS coupons (
+  id TEXT PRIMARY KEY,
+  coupon_code TEXT UNIQUE NOT NULL,
+  coupon_plan_id TEXT NOT NULL,
+  user_id TEXT,
+  discount_value INTEGER,
+  status TEXT,
+  issued_at TIMESTAMPTZ,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+  
 SQL;
 
 db()->exec($sql);
