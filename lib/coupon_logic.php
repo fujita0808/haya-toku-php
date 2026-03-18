@@ -22,6 +22,31 @@ function normalize_rules(string $rulesText): array
     return $rules;
 }
 
+function normalize_discount_rate_input(mixed $value, float $default = 0.0): float
+{
+    $raw = trim((string)$value);
+    if ($raw === '') {
+        return $default;
+    }
+
+    $rate = (float)$raw;
+
+    // 20 → 0.2 に補正
+    if ($rate > 1) {
+        $rate /= 100;
+    }
+
+    if ($rate < 0) {
+        $rate = 0.0;
+    }
+
+    if ($rate > 1) {
+        $rate = 1.0;
+    }
+
+    return $rate;
+}
+
 function normalize_plan_from_post(?array $source = null): array
 {
     $src = $source ?? $_POST;
@@ -37,6 +62,15 @@ function normalize_plan_from_post(?array $source = null): array
         $isActive = in_array((string)$isActiveRaw, ['1', 'true', 'on', 'yes'], true);
     }
 
+    $initialDiscountRate = normalize_discount_rate_input($src['initial_discount_rate'] ?? null, 0.30);
+    $minDiscountRate = normalize_discount_rate_input($src['min_discount_rate'] ?? null, 0.10);
+    $decayStepRate = normalize_discount_rate_input($src['decay_step_rate'] ?? null, 0.0);
+    $decayIntervalMinutes = max(1, (int)($src['decay_interval_minutes'] ?? 180));
+
+    if ($minDiscountRate > $initialDiscountRate) {
+        $minDiscountRate = $initialDiscountRate;
+    }
+
     return [
         'id' => $planId,
         'title' => trim((string)($src['title'] ?? '今日の早得')),
@@ -44,20 +78,19 @@ function normalize_plan_from_post(?array $source = null): array
         'product_name' => trim((string)($src['product_name'] ?? '対象商品')),
         'unit_price' => (int)($src['unit_price'] ?? 1000),
         'cost_rate' => (float)($src['cost_rate'] ?? 0.35),
-        'initial_discount_rate' => (float)($src['initial_discount_rate'] ?? 0.30),
-        'min_discount_rate' => (float)($src['min_discount_rate'] ?? 0.10),
+        'initial_discount_rate' => $initialDiscountRate,
+        'min_discount_rate' => $minDiscountRate,
         'discount_mode' => trim((string)($src['discount_mode'] ?? 'step')),
         'decay_type' => trim((string)($src['decay_type'] ?? 'step')),
-        'decay_interval_minutes' => (int)($src['decay_interval_minutes'] ?? 180),
-        'decay_step_rate' => (float)($src['decay_step_rate'] ?? 0.0),
+        'decay_interval_minutes' => $decayIntervalMinutes,
+        'decay_step_rate' => $decayStepRate,
         'is_active' => $isActive,
         'target_revenue' => (int)($src['target_revenue'] ?? 100000),
-        'rules' => normalize_rules((string)($src['rules_text'] ?? '店頭でこの画面を提示\n1会計1回まで\n他クーポン併用不可')),
+            'rules' => normalize_rules((string)($src['rules_text'] ?? '店頭でこの画面を提示\n1会計1回まで\n他クーポン併用不可')),
         'notes' => trim((string)($src['notes'] ?? '')),
-        'created_at' => trim((string)($src['created_at'] ?? now_iso())),
-        'updated_at' => now_iso(),
     ];
 }
+
 
 function coupon_is_currently_active(array $plan): bool
 {
@@ -207,6 +240,9 @@ function find_plan_by_id(string $id): ?array
 
 function upsert_plan(array $newPlan): void
 {
+    $pdo = db();
+    $now = now_iso();
+
     $sql = <<<SQL
         INSERT INTO coupon_plans (
             id,
@@ -266,25 +302,50 @@ function upsert_plan(array $newPlan): void
             updated_at = EXCLUDED.updated_at
     SQL;
 
-    $stmt = db()->prepare($sql);
-    $stmt->execute([
-        ':id' => (string)$newPlan['id'],
-        ':title' => (string)($newPlan['title'] ?? ''),
-        ':description' => (string)($newPlan['description'] ?? ''),
-        ':product_name' => (string)($newPlan['product_name'] ?? ''),
-        ':unit_price' => (int)($newPlan['unit_price'] ?? 0),
-        ':cost_rate' => (float)($newPlan['cost_rate'] ?? 0),
-        ':initial_discount_rate' => (float)($newPlan['initial_discount_rate'] ?? 0),
-        ':min_discount_rate' => (float)($newPlan['min_discount_rate'] ?? 0),
-        ':discount_mode' => (string)($newPlan['discount_mode'] ?? 'step'),
-        ':decay_type' => (string)($newPlan['decay_type'] ?? 'step'),
-        ':decay_interval_minutes' => (int)($newPlan['decay_interval_minutes'] ?? 0),
-        ':decay_step_rate' => (float)($newPlan['decay_step_rate'] ?? 0),
-        ':is_active' => (bool)($newPlan['is_active'] ?? false),
-        ':target_revenue' => (int)($newPlan['target_revenue'] ?? 0),
-        ':rules' => json_encode($newPlan['rules'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        ':notes' => (string)($newPlan['notes'] ?? ''),
-        ':created_at' => (string)($newPlan['created_at'] ?? now_iso()),
-        ':updated_at' => (string)($newPlan['updated_at'] ?? now_iso()),
-    ]);
+    try {
+        $pdo->beginTransaction();
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':id' => (string)$newPlan['id'],
+            ':title' => (string)($newPlan['title'] ?? ''),
+            ':description' => (string)($newPlan['description'] ?? ''),
+            ':product_name' => (string)($newPlan['product_name'] ?? ''),
+            ':unit_price' => (int)($newPlan['unit_price'] ?? 0),
+            ':cost_rate' => (float)($newPlan['cost_rate'] ?? 0),
+            ':initial_discount_rate' => (float)($newPlan['initial_discount_rate'] ?? 0),
+            ':min_discount_rate' => (float)($newPlan['min_discount_rate'] ?? 0),
+            ':discount_mode' => (string)($newPlan['discount_mode'] ?? 'step'),
+            ':decay_type' => (string)($newPlan['decay_type'] ?? 'step'),
+            ':decay_interval_minutes' => (int)($newPlan['decay_interval_minutes'] ?? 0),
+            ':decay_step_rate' => (float)($newPlan['decay_step_rate'] ?? 0),
+            ':is_active' => (bool)($newPlan['is_active'] ?? false),
+            ':target_revenue' => (int)($newPlan['target_revenue'] ?? 0),
+            ':rules' => json_encode($newPlan['rules'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ':notes' => (string)($newPlan['notes'] ?? ''),
+            ':created_at' => $now,
+            ':updated_at' => $now,
+        ]);
+
+        if (!empty($newPlan['is_active'])) {
+            $deactivate = $pdo->prepare("
+                UPDATE coupon_plans
+                SET is_active = FALSE, updated_at = :updated_at
+                WHERE id <> :id
+                  AND is_active = TRUE
+            ");
+
+            $deactivate->execute([
+                ':id' => (string)$newPlan['id'],
+                ':updated_at' => $now,
+            ]);
+        }
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 }

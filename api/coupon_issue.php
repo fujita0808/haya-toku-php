@@ -1,93 +1,72 @@
 <?php
+
 declare(strict_types=1);
 
-require_once __DIR__ . '/../lib/api_headers.php';
-require_once __DIR__ . '/../lib/db.php';
+require_once __DIR__ . '/../lib/bootstrap.php';
 
-$db = db();
-
-/**
- * 現在有効なクーポンプランを1件取得
- * 今の運用では is_active = TRUE を有効とみなす
- */
-$stmt = $db->query("
-  SELECT *
-  FROM coupon_plans
-  WHERE is_active = TRUE
-  ORDER BY id ASC
-  LIMIT 1
-");
-
-$plan = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$plan) {
-    echo json_encode([
-        'ok' => false,
-        'error' => 'No active coupon plan found'
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
+function generate_coupon_id(): string
+{
+    return bin2hex(random_bytes(16));
 }
 
-/**
- * 発行時点の割引率
- * 今は発行直後なので initial_discount_rate をそのまま返す
- * 実際の利用時は coupon_get.php / coupon_use.php 側で再計算する
- */
-$discountRate = (float)($plan['initial_discount_rate'] ?? 0);
+function generate_coupon_code(): string
+{
+    return substr(bin2hex(random_bytes(8)), 0, 8);
+}
 
-/**
- * coupon のIDと code を生成
- */
-$id = bin2hex(random_bytes(16));
-$couponCode = substr(bin2hex(random_bytes(8)), 0, 8);
-$now = date('c');
+$plan = find_current_plan();
 
-/**
- * coupons.discount_value の型が旧仕様の整数前提なら
- * 0.2 → 20 にして保存する
- */
-$discountValue = (int)round($discountRate * 100);
+if (!$plan) {
+    json_response([
+        'ok' => false,
+        'error' => 'No active coupon plan found',
+    ], 404);
+}
 
-/**
- * coupons に保存
- */
-$insert = $db->prepare("
-  INSERT INTO coupons (
-    id,
-    coupon_code,
-    coupon_plan_id,
-    user_id,
-    discount_value,
-    status,
-    issued_at,
-    created_at,
-    updated_at
-  ) VALUES (
-    :id,
-    :coupon_code,
-    :coupon_plan_id,
-    :user_id,
-    :discount_value,
-    :status,
-    :issued_at,
-    :created_at,
-    :updated_at
-  )
-");
+$issuedDiscountRate = (float)($plan['initial_discount_rate'] ?? 0.0);
+$now = now_iso();
 
-$insert->execute([
+$id = generate_coupon_id();
+$couponCode = generate_coupon_code();
+
+$sql = <<<SQL
+    INSERT INTO coupons (
+        id,
+        coupon_code,
+        coupon_plan_id,
+        user_id,
+        issued_discount_rate,
+        status,
+        issued_at,
+        created_at,
+        updated_at
+    ) VALUES (
+        :id,
+        :coupon_code,
+        :coupon_plan_id,
+        :user_id,
+        :issued_discount_rate,
+        :status,
+        :issued_at,
+        :created_at,
+        :updated_at
+    )
+SQL;
+
+$stmt = db()->prepare($sql);
+$stmt->execute([
     ':id' => $id,
     ':coupon_code' => $couponCode,
-    ':coupon_plan_id' => $plan['id'],
+    ':coupon_plan_id' => (string)$plan['id'],
     ':user_id' => null,
-    ':discount_value' => $discountValue,
+    ':issued_discount_rate' => $issuedDiscountRate,
     ':status' => 'issued',
     ':issued_at' => $now,
     ':created_at' => $now,
     ':updated_at' => $now,
 ]);
 
-echo json_encode([
+json_response([
     'ok' => true,
     'couponId' => $couponCode,
     'coupon' => [
@@ -96,8 +75,8 @@ echo json_encode([
         'coupon_plan_id' => $plan['id'],
         'title' => $plan['title'] ?? null,
         'description' => $plan['description'] ?? null,
-        'discount_rate' => $discountRate,
-        'discount_percent' => round($discountRate * 100, 2),
+        'discount_rate' => $issuedDiscountRate,
+        'discount_percent' => round($issuedDiscountRate * 100, 2),
         'issued_at' => $now,
-    ]
-], JSON_UNESCAPED_UNICODE);
+    ],
+]);
