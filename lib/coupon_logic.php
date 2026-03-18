@@ -11,18 +11,21 @@ function normalize_rules(string $rulesText): array
 {
     $lines = preg_split('/\R/u', $rulesText) ?: [];
     $rules = [];
+
     foreach ($lines as $line) {
         $line = trim($line);
         if ($line !== '') {
             $rules[] = $line;
         }
     }
+
     return $rules;
 }
 
 function normalize_plan_from_post(?array $source = null): array
 {
     $src = $source ?? $_POST;
+
     $planId = trim((string)($src['id'] ?? ''));
     if ($planId === '') {
         $planId = generate_plan_id();
@@ -41,8 +44,6 @@ function normalize_plan_from_post(?array $source = null): array
         'product_name' => trim((string)($src['product_name'] ?? '対象商品')),
         'unit_price' => (int)($src['unit_price'] ?? 1000),
         'cost_rate' => (float)($src['cost_rate'] ?? 0.35),
-
-        // 新仕様
         'initial_discount_rate' => (float)($src['initial_discount_rate'] ?? 0.30),
         'min_discount_rate' => (float)($src['min_discount_rate'] ?? 0.10),
         'discount_mode' => trim((string)($src['discount_mode'] ?? 'step')),
@@ -50,27 +51,22 @@ function normalize_plan_from_post(?array $source = null): array
         'decay_interval_minutes' => (int)($src['decay_interval_minutes'] ?? 180),
         'decay_step_rate' => (float)($src['decay_step_rate'] ?? 0.0),
         'is_active' => $isActive,
-
         'target_revenue' => (int)($src['target_revenue'] ?? 100000),
         'rules' => normalize_rules((string)($src['rules_text'] ?? '店頭でこの画面を提示\n1会計1回まで\n他クーポン併用不可')),
         'notes' => trim((string)($src['notes'] ?? '')),
-        'updated_at' => now_iso(),
         'created_at' => trim((string)($src['created_at'] ?? now_iso())),
+        'updated_at' => now_iso(),
     ];
 }
 
-function coupon_is_currently_active(array $plan, ?DateTimeImmutable $now = null): bool
+function coupon_is_currently_active(array $plan): bool
 {
-    unset($now); // 現仕様では時間判定しない
     return (bool)($plan['is_active'] ?? false);
 }
 
 function calculate_discount_rate(array $plan, ?DateTimeImmutable $now = null): float
 {
-    $issuedAt =
-        (string)($plan['issued_at'] ?? '') !== '' ? (string)$plan['issued_at']
-        : ((string)($plan['created_at'] ?? '') !== '' ? (string)$plan['created_at'] : now_iso());
-
+    $issuedAt = (string)($plan['created_at'] ?? now_iso());
     return calculateCurrentDiscountRate($plan, $issuedAt, $now);
 }
 
@@ -80,30 +76,30 @@ function generate_discount_timeline(array $plan): array
     $min = isset($plan['min_discount_rate']) ? (float)$plan['min_discount_rate'] : 0.0;
     $intervalMinutes = isset($plan['decay_interval_minutes']) ? (int)$plan['decay_interval_minutes'] : 0;
     $stepRate = isset($plan['decay_step_rate']) ? (float)$plan['decay_step_rate'] : 0.0;
-
-    $baseAt =
-        (string)($plan['created_at'] ?? '') !== '' ? (string)$plan['created_at']
-        : now_iso();
+    $baseAt = (string)($plan['created_at'] ?? now_iso());
 
     $base = new DateTimeImmutable($baseAt, new DateTimeZone('Asia/Tokyo'));
 
-    $rows = [];
-    $index = 1;
-    $currentRate = $initial;
-    $currentAt = $base;
-
-    // step設定が不完全な場合は1行だけ返す
-    if ($intervalMinutes <= 0 || $stepRate <= 0 || $initial <= $min) {
+    if ($intervalMinutes <= 0 || $stepRate <= 0) {
         return [[
             'step' => 1,
-            'at' => $currentAt->format(DateTimeInterface::ATOM),
+            'at' => $base->format(DateTimeInterface::ATOM),
             'discount_rate' => round(max($min, $initial), 4),
         ]];
     }
 
+    $rows = [];
+    $step = 1;
+    $currentAt = $base;
+    $currentRate = $initial;
+
     while (true) {
+        if ($currentRate < $min) {
+            $currentRate = $min;
+        }
+
         $rows[] = [
-            'step' => $index,
+            'step' => $step,
             'at' => $currentAt->format(DateTimeInterface::ATOM),
             'discount_rate' => round($currentRate, 4),
         ];
@@ -113,15 +109,57 @@ function generate_discount_timeline(array $plan): array
         }
 
         $currentAt = $currentAt->modify('+' . $intervalMinutes . ' minutes');
-        $currentRate = max($min, $currentRate - $stepRate);
-        $index++;
+        $currentRate -= $stepRate;
+        $step++;
 
-        if ($index > 2000) {
+        if ($step > 2000) {
             break;
         }
     }
 
     return $rows;
+}
+
+function decode_plan_row(array $plan): array
+{
+    if (array_key_exists('is_active', $plan)) {
+        $plan['is_active'] = filter_var($plan['is_active'], FILTER_VALIDATE_BOOL);
+    }
+
+    if (isset($plan['unit_price'])) {
+        $plan['unit_price'] = (int)$plan['unit_price'];
+    }
+
+    if (isset($plan['cost_rate'])) {
+        $plan['cost_rate'] = (float)$plan['cost_rate'];
+    }
+
+    if (isset($plan['initial_discount_rate'])) {
+        $plan['initial_discount_rate'] = (float)$plan['initial_discount_rate'];
+    }
+
+    if (isset($plan['min_discount_rate'])) {
+        $plan['min_discount_rate'] = (float)$plan['min_discount_rate'];
+    }
+
+    if (isset($plan['decay_interval_minutes'])) {
+        $plan['decay_interval_minutes'] = (int)$plan['decay_interval_minutes'];
+    }
+
+    if (isset($plan['decay_step_rate'])) {
+        $plan['decay_step_rate'] = (float)$plan['decay_step_rate'];
+    }
+
+    if (isset($plan['target_revenue'])) {
+        $plan['target_revenue'] = (int)$plan['target_revenue'];
+    }
+
+    if (isset($plan['rules']) && is_string($plan['rules'])) {
+        $decoded = json_decode($plan['rules'], true);
+        $plan['rules'] = is_array($decoded) ? $decoded : [];
+    }
+
+    return $plan;
 }
 
 function find_current_plan(): ?array
@@ -137,7 +175,11 @@ function find_current_plan(): ?array
     $stmt = db()->query($sql);
     $plan = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    return $plan ?: null;
+    if (!$plan) {
+        return null;
+    }
+
+    return decode_plan_row($plan);
 }
 
 function find_plan_by_id(string $id): ?array
@@ -150,10 +192,17 @@ function find_plan_by_id(string $id): ?array
     SQL;
 
     $stmt = db()->prepare($sql);
-    $stmt->execute([':id' => $id]);
+    $stmt->execute([
+        ':id' => $id,
+    ]);
+
     $plan = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    return $plan ?: null;
+    if (!$plan) {
+        return null;
+    }
+
+    return decode_plan_row($plan);
 }
 
 function upsert_plan(array $newPlan): void
