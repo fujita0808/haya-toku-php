@@ -26,11 +26,11 @@ SELECT
     c.id,
     c.coupon_code,
     c.coupon_plan_id,
-    c.title,
-    c.description,
     c.used_at,
     c.issued_at,
     p.id AS plan_id,
+    p.title,
+    p.description,
     p.initial_discount_rate,
     p.min_discount_rate,
     p.discount_mode,
@@ -85,6 +85,7 @@ SQL;
                 'issued_at' => $coupon['issued_at'],
                 'used_at' => $coupon['used_at'],
                 'discount_rate' => null,
+                'discount_percent' => null,
                 'status' => 'used'
             ]
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
