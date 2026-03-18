@@ -1,23 +1,22 @@
 <?php
+
 declare(strict_types=1);
 
-require_once __DIR__ . '/../lib/api_headers.php';
-require_once __DIR__ . '/../lib/db.php';
+header('Content-Type: application/json; charset=utf-8');
 
-function json_out(array $data, int $status = 200): void {
-    http_response_code($status);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    exit;
-}
+require_once __DIR__ . '/../lib/db.php';
+require_once __DIR__ . '/../lib/coupon_discount.php';
 
 try {
     $couponId = $_GET['couponId'] ?? '';
 
     if ($couponId === '') {
-        json_out([
+        http_response_code(400);
+        echo json_encode([
             'ok' => false,
             'error' => 'couponId is required'
-        ], 400);
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
     }
 
     $pdo = db();
@@ -27,19 +26,21 @@ SELECT
     c.id,
     c.coupon_code,
     c.coupon_plan_id,
-    c.issued_at,
+    c.title,
+    c.description,
     c.used_at,
-    p.title,
-    p.status,
-    p.start_at,
-    p.end_at,
-    p.description,
-    p.initial_discount_rate AS discount_rate,
+    c.issued_at,
+    p.id AS plan_id,
+    p.initial_discount_rate,
     p.min_discount_rate,
-    p.decay_interval_minutes
+    p.discount_mode,
+    p.decay_type,
+    p.decay_interval_minutes,
+    p.decay_step_rate,
+    p.is_active
 FROM coupons c
-JOIN coupon_plans p
-  ON p.id = c.coupon_plan_id
+INNER JOIN coupon_plans p
+    ON c.coupon_plan_id = p.id
 WHERE c.coupon_code = :coupon_code
 LIMIT 1
 SQL;
@@ -52,14 +53,47 @@ SQL;
     $coupon = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$coupon) {
-        json_out([
+        http_response_code(404);
+        echo json_encode([
             'ok' => false,
             'error' => 'Coupon not found',
             'couponId' => $couponId
-        ], 404);
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
     }
 
-    json_out([
+    if (!(bool)$coupon['is_active']) {
+        http_response_code(403);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'Coupon plan is inactive',
+            'couponId' => $couponId
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    if (!empty($coupon['used_at'])) {
+        echo json_encode([
+            'ok' => true,
+            'couponId' => $couponId,
+            'coupon' => [
+                'id' => $coupon['id'],
+                'coupon_code' => $coupon['coupon_code'],
+                'coupon_plan_id' => $coupon['coupon_plan_id'],
+                'title' => $coupon['title'],
+                'description' => $coupon['description'],
+                'issued_at' => $coupon['issued_at'],
+                'used_at' => $coupon['used_at'],
+                'discount_rate' => null,
+                'status' => 'used'
+            ]
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $discountRate = calculateCurrentDiscountRate($coupon, $coupon['issued_at']);
+
+    echo json_encode([
         'ok' => true,
         'couponId' => $couponId,
         'coupon' => [
@@ -68,20 +102,21 @@ SQL;
             'coupon_plan_id' => $coupon['coupon_plan_id'],
             'title' => $coupon['title'],
             'description' => $coupon['description'],
-            'status' => $coupon['status'],
-            'start_at' => $coupon['start_at'],
-            'end_at' => $coupon['end_at'],
-            'discount_rate' => (int)$coupon['discount_rate'],
-            'min_discount_rate' => (int)$coupon['min_discount_rate'],
-            'decay_interval_minutes' => (int)$coupon['decay_interval_minutes'],
             'issued_at' => $coupon['issued_at'],
-            'used_at' => $coupon['used_at'],
-            'is_used' => !empty($coupon['used_at'])
+            'discount_rate' => $discountRate,
+            'discount_percent' => round($discountRate * 100, 2),
+            'discount_mode' => $coupon['discount_mode'],
+            'decay_type' => $coupon['decay_type'],
+            'decay_interval_minutes' => (int)$coupon['decay_interval_minutes'],
+            'decay_step_rate' => (float)$coupon['decay_step_rate'],
+            'status' => 'available'
         ]
-    ]);
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
 } catch (Throwable $e) {
-    json_out([
+    http_response_code(500);
+    echo json_encode([
         'ok' => false,
         'error' => $e->getMessage()
-    ], 500);
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
