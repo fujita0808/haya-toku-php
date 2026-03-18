@@ -16,6 +16,17 @@ if (!$plan) {
 $rate = calculate_discount_rate($plan);
 $timeline = generate_discount_timeline($plan);
 
+$baseAt = !empty($plan['created_at']) ? (string)$plan['created_at'] : now_iso();
+$intervalMinutes = isset($plan['decay_interval_minutes']) ? (int)$plan['decay_interval_minutes'] : 0;
+
+$deadlineText = null;
+if ($intervalMinutes > 0 && !empty($timeline)) {
+    $lastTimeline = end($timeline);
+    if (!empty($lastTimeline['at'])) {
+        $deadlineText = date('H:i', strtotime((string)$lastTimeline['at'])) . ' まで';
+    }
+}
+
 json_response([
     'ok' => true,
     'app' => [
@@ -29,23 +40,23 @@ json_response([
     ],
     'coupon' => [
         'planId' => $plan['id'],
-        'title' => $plan['title'],
-        'description' => $plan['description'],
-        'status' => '公開中',
-        'deadlineText' => date('H:i', strtotime($plan['end_at'])) . ' まで',
-        'rules' => $plan['rules'],
-        'notes' => $plan['notes'],
-        'productName' => $plan['product_name'],
-        'unitPrice' => $plan['unit_price'],
-        'targetRevenue' => $plan['target_revenue'],
+        'title' => $plan['title'] ?? '',
+        'description' => $plan['description'] ?? '',
+        'status' => !empty($plan['is_active']) ? '公開中' : '非公開',
+        'deadlineText' => $deadlineText,
+        'rules' => $plan['rules'] ?? [],
+        'notes' => $plan['notes'] ?? '',
+        'productName' => $plan['product_name'] ?? '',
+        'unitPrice' => (int)($plan['unit_price'] ?? 0),
+        'targetRevenue' => (int)($plan['target_revenue'] ?? 0),
     ],
     'current' => [
         'now' => now_iso(),
         'discountRate' => round($rate * 100, 1),
         'discountRateRaw' => $rate,
-        'discountedPrice' => (int)round($plan['unit_price'] * (1 - $rate)),
-        'startAt' => date(DATE_ATOM, strtotime($plan['start_at'])),
-        'endAt' => date(DATE_ATOM, strtotime($plan['end_at'])),
+        'discountedPrice' => (int)round(((int)($plan['unit_price'] ?? 0)) * (1 - $rate)),
+        'baseAt' => date(DATE_ATOM, strtotime($baseAt)),
+        'decayIntervalMinutes' => $intervalMinutes,
     ],
     'timeline' => $timeline,
 ]);
