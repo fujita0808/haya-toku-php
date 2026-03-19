@@ -23,11 +23,10 @@ if (!$plan) {
     ], 404);
 }
 
-$issuedDiscountRate = (float)($plan['initial_discount_rate'] ?? 0.0);
+$issuedDiscountRate = calculate_discount_rate($plan);
 $now = now_iso();
 
 $id = generate_coupon_id();
-$couponCode = generate_coupon_code();
 
 $sql = <<<SQL
     INSERT INTO coupons (
@@ -53,18 +52,37 @@ $sql = <<<SQL
     )
 SQL;
 
-$stmt = db()->prepare($sql);
-$stmt->execute([
-    ':id' => $id,
-    ':coupon_code' => $couponCode,
-    ':coupon_plan_id' => (string)$plan['id'],
-    ':user_id' => null,
-    ':issued_discount_rate' => $issuedDiscountRate,
-    ':status' => 'issued',
-    ':issued_at' => $now,
-    ':created_at' => $now,
-    ':updated_at' => $now,
-]);
+$maxRetry = 5;
+$attempt = 0;
+
+while (true) {
+    $couponCode = generate_coupon_code();
+
+    try {
+        $stmt = db()->prepare($sql);
+        $stmt->execute([
+            ':id' => $id,
+            ':coupon_code' => $couponCode,
+            ':coupon_plan_id' => (string)$plan['id'],
+            ':user_id' => null,
+            ':issued_discount_rate' => $issuedDiscountRate,
+            ':status' => 'issued',
+            ':issued_at' => $now,
+            ':created_at' => $now,
+            ':updated_at' => $now,
+        ]);
+        break;
+    } catch (PDOException $e) {
+        if ($e->getCode() === '23505') {
+            $attempt++;
+            if ($attempt >= $maxRetry) {
+                throw new RuntimeException('Failed to generate unique coupon code');
+            }
+            continue;
+        }
+        throw $e;
+    }
+}
 
 json_response([
     'ok' => true,

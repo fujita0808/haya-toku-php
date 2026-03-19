@@ -86,8 +86,9 @@ function normalize_plan_from_post(?array $source = null): array
         'decay_step_rate' => $decayStepRate,
         'is_active' => $isActive,
         'target_revenue' => (int)($src['target_revenue'] ?? 100000),
-            'rules' => normalize_rules((string)($src['rules_text'] ?? '店頭でこの画面を提示\n1会計1回まで\n他クーポン併用不可')),
+        'rules' => normalize_rules((string)($src['rules_text'] ?? '店頭でこの画面を提示\n1会計1回まで\n他クーポン併用不可')),
         'notes' => trim((string)($src['notes'] ?? '')),
+        'created_at' => trim((string)($src['created_at'] ?? now_iso())),
     ];
 }
 
@@ -323,7 +324,7 @@ function upsert_plan(array $newPlan): void
             ':target_revenue' => (int)($newPlan['target_revenue'] ?? 0),
             ':rules' => json_encode($newPlan['rules'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             ':notes' => (string)($newPlan['notes'] ?? ''),
-            ':created_at' => $now,
+            ':created_at' => (string)($newPlan['created_at'] ?? $now),
             ':updated_at' => $now,
         ]);
 
@@ -348,4 +349,18 @@ function upsert_plan(array $newPlan): void
         }
         throw $e;
     }
+}
+
+function find_all_plans(): array
+{
+    $sql = <<<SQL
+        SELECT *
+        FROM coupon_plans
+        ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC
+    SQL;
+
+    $stmt = db()->query($sql);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    return array_map('decode_plan_row', $rows);
 }

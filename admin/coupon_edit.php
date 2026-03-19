@@ -5,23 +5,21 @@ $id = trim((string)($_GET['id'] ?? ''));
 $plan = $id !== '' ? find_plan_by_id($id) : null;
 if (!$plan) {
     $plan = [
-        'id' => '',
-        'title' => '今日の早得',
-        'description' => '開始直後ほど割引率が高く、時間経過で最低割引率まで減衰します。',
-        'status' => 'draft',
-        'product_name' => '対象商品',
-        'unit_price' => 1200,
-        'cost_rate' => 0.35,
-        'initial_discount_rate' => 0.30,
-        'min_discount_rate' => 0.10,
-        'decay_interval_minutes' => 180,
-        'start_at' => date('Y-m-d 00:00:00'),
-        'end_at' => date('Y-m-d 23:59:59'),
-        'target_revenue' => 100000,
-        'rules' => ['店頭でこの画面を提示','1会計1回まで','他クーポン併用不可'],
-        'notes' => '',
-        'created_at' => now_iso(),
-    ];
+    'id' => '',
+    'title' => '今日の早得',
+    'description' => '開始直後ほど割引率が高く、時間経過で最低割引率まで減衰します。',
+    'is_active' => false,
+    'product_name' => '対象商品',
+    'unit_price' => 1200,
+    'cost_rate' => 0.35,
+    'initial_discount_rate' => 0.30,
+    'min_discount_rate' => 0.10,
+    'decay_interval_minutes' => 180,
+    'target_revenue' => 100000,
+    'rules' => ['店頭でこの画面を提示', '1会計1回まで', '他クーポン併用不可'],
+    'notes' => '',
+    'created_at' => now_iso(),
+];
 }
 ?><!doctype html>
 <html lang="ja">
@@ -54,19 +52,19 @@ if (!$plan) {
 
   <form class="card" method="post" action="/admin/coupon_save.php">
     <input type="hidden" name="id" value="<?= h($plan['id']) ?>">
-    <input type="hidden" name="created_at" value="<?= h($plan['created_at']) ?>">
+    <input type="hidden" name="created_at" value="<?= h((string)($plan['created_at'] ?? '')) ?>">
     <div class="grid">
       <div>
         <label>タイトル</label>
         <input name="title" value="<?= h($plan['title']) ?>" required>
       </div>
       <div>
-        <label>状態</label>
-        <select name="status">
-          <option value="draft" <?= $plan['status']==='draft'?'selected':'' ?>>draft</option>
-          <option value="active" <?= $plan['status']==='active'?'selected':'' ?>>active</option>
-        </select>
-      </div>
+  <label>状態</label>
+  <select name="is_active">
+    <option value="0" <?= empty($plan['is_active']) ? 'selected' : '' ?>>下書き</option>
+    <option value="1" <?= !empty($plan['is_active']) ? 'selected' : '' ?>>公開</option>
+  </select>
+</div>
       <div class="full">
         <label>説明文</label>
         <textarea name="description"><?= h($plan['description']) ?></textarea>
@@ -99,21 +97,13 @@ if (!$plan) {
         <label>減衰間隔（分）</label>
         <input type="number" name="decay_interval_minutes" value="<?= h((string)$plan['decay_interval_minutes']) ?>">
       </div>
-      <div>
-        <label>開始日時</label>
-        <input type="datetime-local" name="start_at" value="<?= h(to_datetime_local($plan['start_at'])) ?>">
-      </div>
-      <div>
-        <label>終了日時</label>
-        <input type="datetime-local" name="end_at" value="<?= h(to_datetime_local($plan['end_at'])) ?>">
-      </div>
       <div class="full">
         <label>利用条件（1行1項目）</label>
-        <textarea name="rules_text"><?= h(implode("\n", $plan['rules'])) ?></textarea>
+        <textarea name="rules_text"><?= h(implode("\n", $plan['rules'] ?? [])) ?></textarea>
       </div>
       <div class="full">
         <label>備考</label>
-        <textarea name="notes"><?= h($plan['notes']) ?></textarea>
+        <textarea name="notes"><?= h($plan['notes'] ?? '') ?></textarea>
       </div>
     </div>
     <div class="actions">

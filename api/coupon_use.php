@@ -71,6 +71,7 @@ try {
             used_at = NOW(),
             used_discount_rate = :used_discount_rate
         WHERE id = :id
+          AND used_at IS NULL
     SQL;
 
     $updateStmt = db()->prepare($updateSql);
@@ -78,6 +79,13 @@ try {
         ':used_discount_rate' => $usedRate,
         ':id' => $coupon['id'],
     ]);
+ 
+    if ($updateStmt->rowCount() === 0) {
+        json_response([
+        'ok' => false,
+        'error' => 'Coupon already used',
+    ], 409);
+}
 
     json_response([
         'ok' => true,

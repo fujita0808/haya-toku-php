@@ -10,7 +10,6 @@ const HAYA_TOKU_STORAGE_DIR = __DIR__ . '/../storage';
 
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/storage.php';
 require_once __DIR__ . '/coupon_discount.php'; // 追加
 require_once __DIR__ . '/coupon_logic.php';
 require_once __DIR__ . '/auth.php';

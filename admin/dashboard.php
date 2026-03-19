@@ -1,9 +1,9 @@
 <?php
 require_once __DIR__ . '/../lib/bootstrap.php';
 require_admin_login();
-$data = load_coupon_plans();
-$plans = $data['plans'] ?? [];
-$logs = load_usage_logs()['logs'] ?? [];
+
+$plans = find_all_plans();
+$logs = [];
 ?><!doctype html>
 <html lang="ja">
 <head>
@@ -28,7 +28,7 @@ $logs = load_usage_logs()['logs'] ?? [];
   <div class="top">
     <div>
       <h1 style="margin:0">HAYA-TOKU ダッシュボード</h1>
-      <div class="muted">JSON ストレージ版 PHP PoC</div>
+      <div class="muted">管理画面 / PostgreSQL移行対応中</div>
     </div>
     <div>
       <a class="btn primary" href="/admin/coupon_edit.php">新規クーポン作成</a>
@@ -39,15 +39,14 @@ $logs = load_usage_logs()['logs'] ?? [];
   <div class="card">
     <h2 style="margin-top:0">クーポンプラン一覧</h2>
     <table>
-      <thead><tr><th>タイトル</th><th>商品</th><th>期間</th><th>割引</th><th>状態</th><th></th></tr></thead>
+      <thead><tr><th>タイトル</th><th>商品</th><th>割引</th><th>状態</th><th></th></tr></thead>
       <tbody>
       <?php foreach ($plans as $plan): ?>
         <tr>
           <td><strong><?= h($plan['title']) ?></strong><br><span class="muted"><?= h($plan['description']) ?></span></td>
           <td><?= h($plan['product_name']) ?></td>
-          <td><?= h($plan['start_at']) ?><br>〜 <?= h($plan['end_at']) ?></td>
           <td><?= h((string)round(((float)$plan['initial_discount_rate']) * 100, 1)) ?>% → <?= h((string)round(((float)$plan['min_discount_rate']) * 100, 1)) ?>%</td>
-          <td><span class="pill"><?= h($plan['status']) ?></span></td>
+          <td><span class="pill"><?= !empty($plan['is_active']) ? '公開' : '下書き' ?></span></td>
           <td><a href="/admin/coupon_edit.php?id=<?= urlencode($plan['id']) ?>">編集</a></td>
         </tr>
       <?php endforeach; ?>

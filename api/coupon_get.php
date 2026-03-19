@@ -2,24 +2,17 @@
 
 declare(strict_types=1);
 
-header('Content-Type: application/json; charset=utf-8');
-
-require_once __DIR__ . '/../lib/db.php';
-require_once __DIR__ . '/../lib/coupon_discount.php';
+require_once __DIR__ . '/../lib/bootstrap.php';
 
 try {
-    $couponId = $_GET['couponId'] ?? '';
+    $couponId = trim((string)($_GET['couponId'] ?? ''));
 
     if ($couponId === '') {
-        http_response_code(400);
-        echo json_encode([
+        json_response([
             'ok' => false,
-            'error' => 'couponId is required'
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
+            'error' => 'couponId is required',
+        ], 400);
     }
-
-    $pdo = db();
 
     $sql = <<<SQL
 SELECT
@@ -28,6 +21,7 @@ SELECT
     c.coupon_plan_id,
     c.used_at,
     c.issued_at,
+    c.used_discount_rate,
     p.id AS plan_id,
     p.title,
     p.description,
@@ -45,35 +39,31 @@ WHERE c.coupon_code = :coupon_code
 LIMIT 1
 SQL;
 
-    $stmt = $pdo->prepare($sql);
+    $stmt = db()->prepare($sql);
     $stmt->execute([
-        ':coupon_code' => $couponId
+        ':coupon_code' => $couponId,
     ]);
 
     $coupon = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$coupon) {
-        http_response_code(404);
-        echo json_encode([
+        json_response([
             'ok' => false,
             'error' => 'Coupon not found',
-            'couponId' => $couponId
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
+            'couponId' => $couponId,
+        ], 404);
     }
 
     if (!(bool)$coupon['is_active']) {
-        http_response_code(403);
-        echo json_encode([
+        json_response([
             'ok' => false,
             'error' => 'Coupon plan is inactive',
-            'couponId' => $couponId
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
+            'couponId' => $couponId,
+        ], 403);
     }
 
     if (!empty($coupon['used_at'])) {
-        echo json_encode([
+        json_response([
             'ok' => true,
             'couponId' => $couponId,
             'coupon' => [
@@ -84,17 +74,18 @@ SQL;
                 'description' => $coupon['description'],
                 'issued_at' => $coupon['issued_at'],
                 'used_at' => $coupon['used_at'],
+                'used_discount_rate' => isset($coupon['used_discount_rate']) ? (float)$coupon['used_discount_rate'] : null,
+                'used_discount_percent' => isset($coupon['used_discount_rate']) ? round(((float)$coupon['used_discount_rate']) * 100, 2) : null,
                 'discount_rate' => null,
                 'discount_percent' => null,
-                'status' => 'used'
-            ]
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        exit;
+                'status' => 'used',
+            ],
+        ]);
     }
 
-    $discountRate = calculateCurrentDiscountRate($coupon, $coupon['issued_at']);
+    $discountRate = calculateCurrentDiscountRate($coupon, (string)$coupon['issued_at']);
 
-    echo json_encode([
+    json_response([
         'ok' => true,
         'couponId' => $couponId,
         'coupon' => [
@@ -110,14 +101,12 @@ SQL;
             'decay_type' => $coupon['decay_type'],
             'decay_interval_minutes' => (int)$coupon['decay_interval_minutes'],
             'decay_step_rate' => (float)$coupon['decay_step_rate'],
-            'status' => 'available'
-        ]
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
+            'status' => 'available',
+        ],
+    ]);
 } catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode([
+    json_response([
         'ok' => false,
-        'error' => $e->getMessage()
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        'error' => $e->getMessage(),
+    ], 500);
 }

@@ -21,7 +21,7 @@ $intervalMinutes = isset($plan['decay_interval_minutes']) ? (int)$plan['decay_in
 
 $deadlineText = null;
 if ($intervalMinutes > 0 && !empty($timeline)) {
-    $lastTimeline = end($timeline);
+    $lastTimeline = $timeline[count($timeline) - 1] ?? null;
     if (!empty($lastTimeline['at'])) {
         $deadlineText = date('H:i', strtotime((string)$lastTimeline['at'])) . ' まで';
     }
