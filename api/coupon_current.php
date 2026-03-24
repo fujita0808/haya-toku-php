@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 require_once __DIR__ . '/../lib/bootstrap.php';
 
 $plan = find_current_plan();
@@ -13,18 +16,26 @@ if (!$plan) {
     ], 404);
 }
 
-$rate = calculate_discount_rate($plan);
+$now = now_iso();
+$startAt = (string)($plan['start_at'] ?? '');
+$endAt = (string)($plan['end_at'] ?? '');
+
 $timeline = generate_discount_timeline($plan);
+$currentRate = calculate_issue_discount_rate($plan, $now);
+$dailyDecayRate = calculate_daily_decay_rate($plan);
 
-$baseAt = !empty($plan['created_at']) ? (string)$plan['created_at'] : now_iso();
-$intervalMinutes = isset($plan['decay_interval_minutes']) ? (int)$plan['decay_interval_minutes'] : 0;
+$isIssuable = true;
+if ($startAt !== '' && $endAt !== '') {
+    $nowDt = new DateTimeImmutable($now, new DateTimeZone('Asia/Tokyo'));
+    $startDt = new DateTimeImmutable($startAt, new DateTimeZone('Asia/Tokyo'));
+    $endDt = new DateTimeImmutable($endAt, new DateTimeZone('Asia/Tokyo'));
+    $isIssuable = !($nowDt < $startDt || $nowDt > $endDt);
+}
 
-$deadlineText = null;
-if ($intervalMinutes > 0 && !empty($timeline)) {
-    $lastTimeline = $timeline[count($timeline) - 1] ?? null;
-    if (!empty($lastTimeline['at'])) {
-        $deadlineText = date('H:i', strtotime((string)$lastTimeline['at'])) . ' まで';
-    }
+$currentDate = (new DateTimeImmutable($now, new DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
+$elapsedDays = 0;
+if ($startAt !== '') {
+    $elapsedDays = calculate_elapsed_days_from_plan_start($startAt, $now);
 }
 
 json_response([
@@ -34,29 +45,34 @@ json_response([
         'displayName' => HAYA_TOKU_APP_NAME,
     ],
     'runtime' => [
-        'liffId' => '2009179515-rJ1LaY8l',
-        'useConfirmSeconds' => 10,
-        'cancelPolicy' => 'confirmInClient',
+        'now' => $now,
+        'current_date' => $currentDate,
+        'timezone' => 'Asia/Tokyo',
     ],
     'coupon' => [
-        'planId' => $plan['id'],
+        'plan_id' => $plan['id'] ?? null,
         'title' => $plan['title'] ?? '',
         'description' => $plan['description'] ?? '',
-        'status' => !empty($plan['is_active']) ? '公開中' : '非公開',
-        'deadlineText' => $deadlineText,
-        'rules' => $plan['rules'] ?? [],
+        'product_name' => $plan['product_name'] ?? '',
+        'rules' => is_array($plan['rules'] ?? null) ? $plan['rules'] : [],
         'notes' => $plan['notes'] ?? '',
-        'productName' => $plan['product_name'] ?? '',
-        'unitPrice' => (int)($plan['unit_price'] ?? 0),
-        'targetRevenue' => (int)($plan['target_revenue'] ?? 0),
+        'is_active' => (bool)($plan['is_active'] ?? false),
+    ],
+    'public_period' => [
+        'start_at' => $startAt,
+        'end_at' => $endAt,
+        'is_issuable' => $isIssuable,
     ],
     'current' => [
-        'now' => now_iso(),
-        'discountRate' => round($rate * 100, 1),
-        'discountRateRaw' => $rate,
-        'discountedPrice' => (int)round(((int)($plan['unit_price'] ?? 0)) * (1 - $rate)),
-        'baseAt' => date(DATE_ATOM, strtotime($baseAt)),
-        'decayIntervalMinutes' => $intervalMinutes,
+        'elapsed_days' => $elapsedDays,
+        'discount_rate' => $currentRate,
+        'discount_percent' => round($currentRate * 100, 2),
+        'initial_discount_rate' => normalize_discount_rate($plan['initial_discount_rate'] ?? 0),
+        'initial_discount_percent' => round(normalize_discount_rate($plan['initial_discount_rate'] ?? 0) * 100, 2),
+        'min_discount_rate' => normalize_discount_rate($plan['min_discount_rate'] ?? 0),
+        'min_discount_percent' => round(normalize_discount_rate($plan['min_discount_rate'] ?? 0) * 100, 2),
+        'daily_decay_rate' => round($dailyDecayRate, 4),
+        'daily_decay_percent' => round($dailyDecayRate * 100, 4),
     ],
     'timeline' => $timeline,
 ]);

@@ -19,18 +19,13 @@ SELECT
     c.id,
     c.coupon_code,
     c.coupon_plan_id,
-    c.used_at,
     c.issued_at,
+    c.issued_discount_rate,
+    c.used_at,
     c.used_discount_rate,
     p.id AS plan_id,
     p.title,
     p.description,
-    p.initial_discount_rate,
-    p.min_discount_rate,
-    p.discount_mode,
-    p.decay_type,
-    p.decay_interval_minutes,
-    p.decay_step_rate,
     p.is_active
 FROM coupons c
 INNER JOIN coupon_plans p
@@ -62,6 +57,12 @@ SQL;
         ], 403);
     }
 
+    $issuedDiscountRate = isset($coupon['issued_discount_rate'])
+        ? (float)$coupon['issued_discount_rate']
+        : null;
+
+    $elapsedDays = calculateElapsedDaysByDate((string)$coupon['issued_at']);
+
     if (!empty($coupon['used_at'])) {
         json_response([
             'ok' => true,
@@ -73,17 +74,19 @@ SQL;
                 'title' => $coupon['title'],
                 'description' => $coupon['description'],
                 'issued_at' => $coupon['issued_at'],
+                'issued_date' => date('Y-m-d', strtotime((string)$coupon['issued_at'])),
+                'elapsed_days' => $elapsedDays,
+                'issued_discount_rate' => $issuedDiscountRate,
+                'issued_discount_percent' => $issuedDiscountRate !== null ? round($issuedDiscountRate * 100, 2) : null,
                 'used_at' => $coupon['used_at'],
                 'used_discount_rate' => isset($coupon['used_discount_rate']) ? (float)$coupon['used_discount_rate'] : null,
                 'used_discount_percent' => isset($coupon['used_discount_rate']) ? round(((float)$coupon['used_discount_rate']) * 100, 2) : null,
-                'discount_rate' => null,
-                'discount_percent' => null,
+                'discount_rate' => $issuedDiscountRate,
+                'discount_percent' => $issuedDiscountRate !== null ? round($issuedDiscountRate * 100, 2) : null,
                 'status' => 'used',
             ],
         ]);
     }
-
-    $discountRate = calculateCurrentDiscountRate($coupon, (string)$coupon['issued_at']);
 
     json_response([
         'ok' => true,
@@ -95,12 +98,12 @@ SQL;
             'title' => $coupon['title'],
             'description' => $coupon['description'],
             'issued_at' => $coupon['issued_at'],
-            'discount_rate' => $discountRate,
-            'discount_percent' => round($discountRate * 100, 2),
-            'discount_mode' => $coupon['discount_mode'],
-            'decay_type' => $coupon['decay_type'],
-            'decay_interval_minutes' => (int)$coupon['decay_interval_minutes'],
-            'decay_step_rate' => (float)$coupon['decay_step_rate'],
+            'issued_date' => date('Y-m-d', strtotime((string)$coupon['issued_at'])),
+            'elapsed_days' => $elapsedDays,
+            'issued_discount_rate' => $issuedDiscountRate,
+            'issued_discount_percent' => $issuedDiscountRate !== null ? round($issuedDiscountRate * 100, 2) : null,
+            'discount_rate' => $issuedDiscountRate,
+            'discount_percent' => $issuedDiscountRate !== null ? round($issuedDiscountRate * 100, 2) : null,
             'status' => 'available',
         ],
     ]);

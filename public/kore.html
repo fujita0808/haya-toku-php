@@ -1,332 +1,484 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>早得クーポン | HAYA-TOKU（🍊ver / PHP PoC）</title>
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
-    :root{
-      --brand:#FF7A00; --brand2:#FFB300; --brand3:#FF5A00;
-      --bg:#fff7ec; --card:#fff; --text:#0b1220; --muted:#6b7280;
-      --border:rgba(255,122,0,.16); --shadow:0 14px 30px rgba(0,0,0,.10);
-      --ok:#0a7f3f; --ng:#b42318;
-      --closeBg:#3a1716; --closeBg2:#52201e; --closeBorder:rgba(255,255,255,.14);
-      --nameBg: rgba(255,122,0,.10); --nameBorder: rgba(255,122,0,.22); --nameAccent: #FF7A00;
+    :root {
+      --bg: #fff7ec;
+      --card: #ffffff;
+      --text: #222222;
+      --muted: #666666;
+      --line: #eadfce;
+      --accent: #ff7a00;
+      --accent-2: #ffb300;
+      --ok: #0a7f45;
+      --warn: #9a5b00;
     }
-    *{box-sizing:border-box} html,body{height:100%}
-    body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:radial-gradient(900px 540px at 15% -10%, rgba(255,179,0,.42), transparent 55%),radial-gradient(800px 540px at 95% 10%, rgba(255,122,0,.32), transparent 55%),var(--bg);color:var(--text)}
-    .app{max-width:520px;min-height:100dvh;margin:0 auto;padding-bottom:148px}
-    .topbar{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,var(--brand),var(--brand2));color:#fff;padding:12px 14px;box-shadow:0 10px 24px rgba(255,90,0,.22)}
-    .row{display:flex;align-items:center;justify-content:space-between;gap:10px}.top-left{display:flex;align-items:center;gap:10px}.avatar{width:34px;height:34px;border-radius:12px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-weight:900}.appname{font-size:14px;font-weight:900}.hint{font-size:11px;opacity:.92}
-    .chat{padding:12px;display:grid;gap:10px}.bubble{max-width:92%;border-radius:18px;padding:12px;border:1px solid rgba(255,122,0,.14);line-height:1.55;font-size:14px;background:#fff;box-shadow:0 8px 18px rgba(0,0,0,.06)} .bubble.left{justify-self:start;border-top-left-radius:10px}.bubble.right{justify-self:end;background:rgba(255,122,0,.10);border-top-right-radius:10px}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
-    .card-head{padding:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid var(--border);background:linear-gradient(180deg, rgba(255,122,0,.12), transparent)}
-    .card-head h2{margin:0;font-size:16px;font-weight:1000;line-height:1.25}.pill{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid rgba(255,122,0,.18);background:rgba(255,255,255,.75);color:#7c5a3c}.pill.used{border-color: rgba(10,127,63,.25);color: var(--ok);background: rgba(10,127,63,.10)}
-    .card-body{padding:14px}.coupon{position:relative;border:1px dashed rgba(255,90,0,.35);background:radial-gradient(160px 80px at 12% 0%, rgba(255,179,0,.22), transparent 60%),radial-gradient(220px 120px at 100% 10%, rgba(255,122,0,.18), transparent 65%),rgba(255,255,255,.88);border-radius:16px;padding:14px}.coupon-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.off{font-size:36px;font-weight:1100;color:#6b3f1a}.off span{font-size:14px;font-weight:1000;margin-left:4px}.deadline{text-align:right;font-size:12px;color:#7c5a3c;font-weight:1000}.sub{margin-top:8px;font-size:12px;color:#6b3f1a;line-height:1.6}.rules{margin:10px 0 0;padding-left:18px;font-size:12px;color:#6b3f1a;line-height:1.65}.usedBadge{position:absolute;top:12px;right:12px;display:none;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:1100;border:1px solid rgba(10,127,63,.28);background: rgba(10,127,63,.10);color: var(--ok)} .coupon.is-used .usedBadge{display:inline-flex}
-    .timeline{margin-top:12px;display:grid;gap:8px}.step{border:1px solid rgba(255,122,0,.14);border-radius:14px;padding:10px;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px}.step.active{border-color:rgba(255,90,0,.28);box-shadow:0 12px 26px rgba(255,90,0,.14)}
-    .bottombar{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:10px 12px;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);border-top:1px solid rgba(255,122,0,.14)} .bottombar .inner{max-width:520px;margin:0 auto;display:grid;gap:10px}
-    .btn{border:0;border-radius:16px;padding:14px;font-size:15px;font-weight:1100;cursor:pointer}.btn.primary{background:linear-gradient(180deg,var(--brand),var(--brand2));color:#fff;box-shadow:0 14px 30px rgba(255,90,0,.22)} .btn.secondary{background:#fff;color:var(--text);border:1px solid rgba(255,122,0,.16)} .btn.close{background:linear-gradient(180deg,var(--closeBg2),var(--closeBg));color:#fff;border:1px solid var(--closeBorder)} .btn:disabled{opacity:.65;cursor:not-allowed}
-    .minirow{display:flex;gap:10px}.sys{margin:10px 12px 0;color:var(--muted);font-size:11px;line-height:1.6;text-align:center}
-    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.42);display:none;align-items:flex-end;justify-content:center;padding:12px;z-index:50}.overlay.show{display:flex}.modal{width:min(520px,100%);background:#fff;border-radius:22px 22px 16px 16px;box-shadow:0 24px 60px rgba(0,0,0,.24);overflow:hidden}.modal-head{padding:14px 16px;border-bottom:1px solid #eee;background:linear-gradient(180deg, rgba(255,122,0,.10), transparent)}.modal-body{padding:16px}.namebar{background:var(--nameBg);border:1px solid var(--nameBorder);border-left:6px solid var(--nameAccent);border-radius:14px;padding:10px 12px;margin:10px 0 12px}.count{font-size:32px;font-weight:1000;color:#6b3f1a}.tapToClose{margin-top:10px;font-size:12px;color:#666;text-align:center}
-    .toastHost{position:fixed;left:0;right:0;bottom:90px;z-index:999;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}.toast{min-width:260px;max-width:92vw;background:#111827;color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 18px 40px rgba(0,0,0,.24);opacity:0;transform:translateY(10px);transition:.18s ease;pointer-events:auto}.toast.show{opacity:1;transform:translateY(0)}
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #fff7ec 0%, #fff2df 100%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    }
+
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 20px 16px 48px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255, 122, 0, 0.14);
+      border-radius: 22px;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.08);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      font-size: 26px;
+      font-weight: 800;
+      margin: 0 0 8px;
+      line-height: 1.35;
+    }
+
+    .desc {
+      color: var(--muted);
+      line-height: 1.7;
+      margin: 0;
+      white-space: pre-wrap;
+    }
+
+    .hero {
+      text-align: center;
+      padding: 26px 18px;
+      background: linear-gradient(180deg, #fffaf4 0%, #fff2df 100%);
+    }
+
+    .hero-label {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+      font-weight: 700;
+    }
+
+    .hero-rate {
+      font-size: 54px;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--accent);
+      letter-spacing: -0.03em;
+      margin: 0;
+    }
+
+    .hero-note {
+      margin-top: 10px;
+      color: var(--warn);
+      font-size: 14px;
+      line-height: 1.7;
+      font-weight: 700;
+    }
+
+    .coupon-name {
+      margin-top: 14px;
+      font-size: 22px;
+      font-weight: 900;
+      line-height: 1.4;
+      color: #222;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .meta-item {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      background: #fffdfa;
+    }
+
+    .meta-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    .meta-value {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .section-title {
+      margin: 0 0 10px;
+      font-size: 17px;
+      font-weight: 900;
+    }
+
+    .rules {
+      margin: 0;
+      padding-left: 1.2em;
+      line-height: 1.8;
+    }
+
+    .rules li + li {
+      margin-top: 2px;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .timeline-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: #fffdfa;
+    }
+
+    .timeline-date {
+      font-size: 14px;
+      font-weight: 700;
+      color: #444;
+    }
+
+    .timeline-rate {
+      font-size: 16px;
+      font-weight: 900;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 16px;
+      padding: 16px;
+      font-size: 17px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
+      color: white;
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+
+    .status-box {
+      border-radius: 16px;
+      padding: 14px 16px;
+      line-height: 1.7;
+      font-size: 14px;
+      border: 1px solid var(--line);
+      background: #fffdfa;
+    }
+
+    .issued-box {
+      background: #fff8ef;
+      border: 1px solid #ffd9ad;
+    }
+
+    .used-box {
+      background: #f5fbf7;
+      border: 1px solid #bfdfc8;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .strong {
+      font-weight: 900;
+    }
+
+    .hide {
+      display: none !important;
+    }
+
+    .footer-space {
+      height: 10px;
+    }
+
+    @media (max-width: 640px) {
+      .meta {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-rate {
+        font-size: 46px;
+      }
+
+      .coupon-name {
+        font-size: 20px;
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="app">
-    <header class="topbar">
-      <div class="row">
-        <div class="top-left">
-          <div class="avatar" id="avatarBox">H</div>
-          <div>
-            <div class="appname" id="appName">HAYA-TOKU（🍊ver / PHP PoC）</div>
-            <div class="hint" id="hintText">起動中…</div>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <main class="chat">
-      <div class="bubble left"><b>早得クーポン</b>へようこそ！<br><span style="color:#6b7280">開始直後ほど割引率が高い PoC 版です。</span></div>
-      <div class="bubble right" id="helloText">いま使うと、どれくらいお得？</div>
-
-      <section class="card" aria-label="クーポンカード">
-        <div class="card-head">
-          <h2 id="couponTitle">今日の早得</h2>
-          <span class="pill" id="statusPill">読込中…</span>
-        </div>
-        <div class="card-body">
-          <div class="coupon" id="couponBox">
-            <span class="usedBadge" id="usedBadge">利用済み</span>
-            <div class="coupon-top">
-              <div class="off" id="offText">--<span>% OFF</span></div>
-              <div class="deadline">有効期限<br><span id="deadlineText">--</span></div>
-            </div>
-            <div class="sub" id="couponDescription">クーポン説明を取得中…</div>
-            <ul class="rules" id="rulesList"></ul>
-          </div>
-          <div class="timeline" id="timelineBox"></div>
-        </div>
-      </section>
-      <div class="sys">API: <span id="apiState">未接続</span> / LIFF: <span id="liffState">未確認</span></div>
-    </main>
+<div class="wrap">
+  <div class="card hero">
+    <div class="hero-label">今この時点で発行すると</div>
+    <div id="heroRate" class="hero-rate">--%</div>
+    <div id="heroNote" class="hero-note">この割引率でクーポンが確定します</div>
+    <div id="couponName" class="coupon-name">クーポン名を読み込み中…</div>
   </div>
 
-  <div class="bottombar">
-    <div class="inner">
-      <button class="btn primary" id="useBtn">このクーポンを使う</button>
-      <div class="minirow">
-        <button class="btn secondary" id="shareBtn">共有</button>
-        <button class="btn secondary" id="resetBtn">利用状態リセット</button>
+  <div class="card">
+    <h1 id="title" class="title">読み込み中…</h1>
+    <p id="description" class="desc"></p>
+  </div>
+
+  <div class="card">
+    <h2 class="section-title">基本情報</h2>
+    <div class="meta">
+      <div class="meta-item">
+        <div class="meta-label">公開期間</div>
+        <div id="period" class="meta-value">--</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">割引率の考え方</div>
+        <div class="meta-value">日単位で減衰 / 発行時に固定</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">初期割引率</div>
+        <div id="initialRate" class="meta-value">--</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">最低割引率</div>
+        <div id="minRate" class="meta-value">--</div>
       </div>
     </div>
   </div>
 
-  <div class="overlay" id="overlay">
-    <div class="modal" role="dialog" aria-modal="true">
-      <div class="modal-head"><b>利用確認</b></div>
-      <div class="modal-body">
-        <div class="namebar"><div style="font-size:12px;color:#6b3f1a">クーポン名</div><div style="font-weight:1000" id="modalCouponTitle">今日の早得</div></div>
-        <div>このままキャンセルしない場合、<b id="countText">10</b>秒後に利用確定します。</div>
-        <div class="count" id="countBig">10</div>
-        <div style="display:flex;gap:10px;margin-top:14px">
-          <button class="btn secondary" id="cancelBtn">キャンセル</button>
-          <button class="btn primary" id="confirmNowBtn">今すぐ確定</button>
-        </div>
-        <div class="tapToClose" id="tapToClose" style="display:none">※ 確定後は背景タップで閉じます</div>
-      </div>
+  <div class="card">
+    <h2 class="section-title">利用条件</h2>
+    <ul id="rules" class="rules"></ul>
+  </div>
+
+  <div class="card">
+    <h2 class="section-title">日別の発行時割引率</h2>
+    <div id="timeline" class="timeline"></div>
+  </div>
+
+  <div class="card">
+    <h2 class="section-title">クーポン操作</h2>
+    <div class="actions">
+      <button id="issueBtn" class="btn-primary" type="button">このクーポンを発行する</button>
+      <button id="reloadBtn" class="btn-secondary" type="button">最新状態を再読込</button>
     </div>
   </div>
 
-  <div class="toastHost" id="toastHost"></div>
+  <div id="issuedBox" class="card status-box issued-box hide"></div>
+  <div id="usedBox" class="card status-box used-box hide"></div>
 
-  <script>
-    const DEFAULT_CONFIG = {
-      app: { documentTitle: '早得クーポン | HAYA-TOKU（🍊ver / PHP PoC）', displayName: 'HAYA-TOKU（🍊ver / PHP PoC）' },
-      runtime: { liffId: '2009179515-rJ1LaY8l', useConfirmSeconds: 10, cancelPolicy: 'confirmInClient' },
-      coupon: { title: '今日の早得', description: '開始直後ほど割引率が高いクーポンです。', status: '公開中', deadlineText: '23:59 まで', rules: ['店頭でこの画面を提示','1会計1回まで','他クーポン併用不可'] },
-      current: { discountRate: 20 },
-      timeline: []
-    };
+  <div class="footer-space"></div>
+</div>
 
-    let CONFIG = structuredClone(DEFAULT_CONFIG);
-    let ENV = { hasLiff: typeof window.liff !== 'undefined', isInClient:false, isLoggedIn:false, profile:null };
-    let countdownTimer = null;
-    let remaining = 0;
-    let confirmFinished = false;
+<script>
+  const state = {
+    current: null,
+    issuedCoupon: null,
+  };
 
-    const $ = (id) => document.getElementById(id);
-    const pad2 = (n) => String(n).padStart(2,'0');
-    const todayKey = () => {
-      const d = new Date();
-      return `haya-toku.used.v4.${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-    };
-    const USED = {
-      key(){ return todayKey(); },
-      get(){ try { return localStorage.getItem(this.key()) === '1'; } catch { return false; } },
-      set(v){ try { localStorage.setItem(this.key(), v ? '1' : '0'); } catch {} },
-      clear(){ try { localStorage.removeItem(this.key()); } catch {} },
-    };
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 
-    function toast(msg){
-      const host = $('toastHost');
-      const el = document.createElement('div');
-      el.className = 'toast';
-      el.textContent = msg;
-      host.appendChild(el);
-      requestAnimationFrame(()=>el.classList.add('show'));
-      setTimeout(()=>{ el.classList.remove('show'); setTimeout(()=>el.remove(),180); }, 2200);
+  function formatPercent(value) {
+    if (value === null || value === undefined || value === '') {
+      return '--';
     }
-
-    function mergeConfig(base, incoming){
-      return {
-        ...base,
-        ...incoming,
-        app: { ...(base.app||{}), ...(incoming.app||{}) },
-        runtime: { ...(base.runtime||{}), ...(incoming.runtime||{}) },
-        coupon: { ...(base.coupon||{}), ...(incoming.coupon||{}) },
-        current: { ...(base.current||{}), ...(incoming.current||{}) },
-        timeline: Array.isArray(incoming.timeline) ? incoming.timeline : base.timeline,
-      };
+    const num = Number(value);
+    if (!Number.isFinite(num)) {
+      return '--';
     }
+    return `${num.toFixed(2).replace(/\.00$/, '')}%`;
+  }
 
-    async function loadSettings(){
-      try{
-        const res = await fetch('/api/coupon_current.php', { cache:'no-store' });
-        const json = await res.json();
-        if (!res.ok || !json.ok) throw new Error(json.message || 'APIエラー');
-        CONFIG = mergeConfig(DEFAULT_CONFIG, json);
-        sessionStorage.setItem('haya-toku.settings.cache', JSON.stringify(CONFIG));
-        $('apiState').textContent = '接続OK';
-      }catch(err){
-        const cached = sessionStorage.getItem('haya-toku.settings.cache');
-        if (cached) {
-          try { CONFIG = mergeConfig(DEFAULT_CONFIG, JSON.parse(cached)); $('apiState').textContent = 'キャッシュ読込'; }
-          catch { CONFIG = structuredClone(DEFAULT_CONFIG); $('apiState').textContent = 'デフォルト起動'; }
-        } else {
-          CONFIG = structuredClone(DEFAULT_CONFIG);
-          $('apiState').textContent = 'デフォルト起動';
-        }
-        toast('API読込に失敗したため、ローカル設定で表示しています');
-      }
-      document.title = CONFIG.app.documentTitle;
-      $('appName').textContent = CONFIG.app.displayName;
+  function formatDateTime(value) {
+    if (!value) {
+      return '--';
     }
+    return String(value).replace('T', ' ');
+  }
 
-    function renderCoupon(){
-      $('couponTitle').textContent = CONFIG.coupon.title;
-      $('modalCouponTitle').textContent = CONFIG.coupon.title;
-      $('couponDescription').innerHTML = `${CONFIG.coupon.description}<br><span style="font-weight:700">対象商品: ${CONFIG.coupon.productName || '対象商品'}</span>`;
-      $('deadlineText').textContent = CONFIG.coupon.deadlineText;
-      $('offText').innerHTML = `${Number(CONFIG.current.discountRate || 0).toFixed(1)}<span>% OFF</span>`;
-      const pill = $('statusPill');
-      pill.textContent = USED.get() ? '本日利用済み' : (CONFIG.coupon.status || '公開中');
-      pill.className = USED.get() ? 'pill used' : 'pill';
-      $('couponBox').classList.toggle('is-used', USED.get());
-      $('useBtn').disabled = USED.get();
-      $('useBtn').textContent = USED.get() ? '本日は利用済みです' : 'このクーポンを使う';
+  function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.textContent = text;
+    }
+  }
 
-      const rulesList = $('rulesList');
-      rulesList.innerHTML = '';
-      (CONFIG.coupon.rules || []).forEach(rule => {
-        const li = document.createElement('li');
-        li.textContent = rule;
-        rulesList.appendChild(li);
+  function show(el) {
+    el.classList.remove('hide');
+  }
+
+  function hide(el) {
+    el.classList.add('hide');
+  }
+
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || data.message || `HTTP ${response.status}`);
+    }
+    return data;
+  }
+
+  function renderCurrent(data) {
+    state.current = data;
+
+    document.title = data?.app?.documentTitle || '早得クーポン | HAYA-TOKU（🍊ver / PHP PoC）';
+
+    const coupon = data.coupon || {};
+    const plan = data.plan || {};
+    const current = data.current || {};
+    const timeline = Array.isArray(data.timeline) ? data.timeline : [];
+
+    setText('title', coupon.title || '無題');
+    setText('description', coupon.description || '');
+    setText('couponName', coupon.product_name || coupon.title || '対象クーポン');
+    setText('heroRate', formatPercent(current.issue_discount_percent));
+    setText('heroNote', current.message || 'この割引率でクーポンが確定します');
+    setText(
+      'period',
+      `${formatDateTime(plan.start_at)} ～ ${formatDateTime(plan.end_at)}`
+    );
+    setText('initialRate', formatPercent(plan.initial_discount_percent));
+    setText('minRate', formatPercent(plan.min_discount_percent));
+
+    const rulesEl = document.getElementById('rules');
+    const rules = Array.isArray(coupon.rules) ? coupon.rules : [];
+    rulesEl.innerHTML = rules.length
+      ? rules.map(rule => `<li>${escapeHtml(rule)}</li>`).join('')
+      : '<li>条件はありません</li>';
+
+    const timelineEl = document.getElementById('timeline');
+    timelineEl.innerHTML = timeline.length
+      ? timeline.map(row => `
+          <div class="timeline-row">
+            <div class="timeline-date">${escapeHtml(row.date)}</div>
+            <div class="timeline-rate">${formatPercent(row.discount_percent)}</div>
+          </div>
+        `).join('')
+      : '<div class="muted">タイムラインはありません</div>';
+  }
+
+  function renderIssuedCoupon(coupon) {
+    const issuedBox = document.getElementById('issuedBox');
+    const usedBox = document.getElementById('usedBox');
+
+    hide(usedBox);
+    show(issuedBox);
+
+    issuedBox.innerHTML = `
+      <div class="strong">発行済みクーポン</div>
+      <div>クーポンコード: <span class="strong">${escapeHtml(coupon.coupon_code)}</span></div>
+      <div>発行日: ${escapeHtml(coupon.issued_date || '')}</div>
+      <div>確定割引率: <span class="strong">${formatPercent(coupon.discount_percent)}</span></div>
+      <div class="muted">このクーポンの割引率は発行時点で固定されています。</div>
+      <div style="margin-top:12px;">
+        <button id="useBtn" class="btn-primary" type="button">このクーポンを使用する</button>
+      </div>
+    `;
+
+    const useBtn = document.getElementById('useBtn');
+    useBtn.addEventListener('click', useIssuedCoupon);
+  }
+
+  function renderUsedCoupon(result) {
+    const issuedBox = document.getElementById('issuedBox');
+    const usedBox = document.getElementById('usedBox');
+
+    hide(issuedBox);
+    show(usedBox);
+
+    usedBox.innerHTML = `
+      <div class="strong">使用済みクーポン</div>
+      <div>クーポンコード: <span class="strong">${escapeHtml(result.couponId || '')}</span></div>
+      <div>使用日時: ${escapeHtml(result.used_at || '')}</div>
+      <div>適用割引率: <span class="strong">${formatPercent(result.used_discount_percent)}</span></div>
+      <div class="muted">使用時に再計算は行わず、発行時の確定割引率を適用しています。</div>
+    `;
+  }
+
+  async function loadCurrent() {
+    try {
+      const data = await fetchJson('/api/coupon_current.php');
+      renderCurrent(data);
+    } catch (error) {
+      alert(`読み込みに失敗しました: ${error.message}`);
+    }
+  }
+
+  async function issueCoupon() {
+    try {
+      const data = await fetchJson('/api/coupon_issue.php', {
+        method: 'POST',
       });
-
-      const timelineBox = $('timelineBox');
-      timelineBox.innerHTML = '';
-      const now = new Date(CONFIG.current.now || Date.now()).getTime();
-      (CONFIG.timeline || []).slice(0,6).forEach((row, index) => {
-        const div = document.createElement('div');
-        const active = index === 0 || Math.abs(new Date(row.at).getTime() - now) < 1000 * 60 * 60 * 3;
-        div.className = 'step' + (active ? ' active' : '');
-        div.innerHTML = `<div><b>Step ${row.step}</b><br><span style="font-size:12px;color:#666">${row.at.replace('T',' ').slice(0,16)}</span></div><div style="font-weight:1000">${(row.discount_rate * 100).toFixed(1)}%</div>`;
-        timelineBox.appendChild(div);
-      });
-    }
-
-    async function initLiffOrBrowser(){
-      if (!ENV.hasLiff) {
-        $('hintText').textContent = 'ブラウザで起動しました';
-        $('liffState').textContent = '未使用';
-        return;
+      state.issuedCoupon = data.coupon || null;
+      if (!state.issuedCoupon) {
+        throw new Error('発行結果に coupon がありません');
       }
-      try{
-        await liff.init({ liffId: CONFIG.runtime.liffId });
-        ENV.isInClient = !!liff.isInClient();
-        ENV.isLoggedIn = !!liff.isLoggedIn();
-        $('liffState').textContent = ENV.isInClient ? 'LINE内' : '外部ブラウザ';
-        $('hintText').textContent = ENV.isInClient ? 'LINE内で起動しました' : 'LIFF初期化済み';
-        if (ENV.isLoggedIn) {
-          ENV.profile = await liff.getProfile();
-          const name = (ENV.profile?.displayName || '').trim();
-          if (name) $('helloText').textContent = `${name}さん、いま使うとどれくらいお得？`;
-          if (ENV.profile?.pictureUrl) $('avatarBox').innerHTML = `<img alt="" src="${ENV.profile.pictureUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:12px">`;
-        }
-      }catch(err){
-        $('liffState').textContent = '初期化失敗';
-        $('hintText').textContent = 'LIFF初期化に失敗しました';
-      }
+      renderIssuedCoupon(state.issuedCoupon);
+    } catch (error) {
+      alert(`発行に失敗しました: ${error.message}`);
+    }
+  }
+
+  async function useIssuedCoupon() {
+    if (!state.issuedCoupon?.coupon_code) {
+      alert('クーポン情報がありません');
+      return;
     }
 
-    function openModal(){
-      if (USED.get()) return;
-      confirmFinished = false;
-      remaining = Number(CONFIG.runtime.useConfirmSeconds || 10);
-      $('countText').textContent = remaining;
-      $('countBig').textContent = remaining;
-      $('overlay').classList.add('show');
-      $('tapToClose').style.display = 'none';
-      startCountdown();
+    try {
+      const result = await fetchJson(`/api/coupon_use.php?couponId=${encodeURIComponent(state.issuedCoupon.coupon_code)}`);
+      renderUsedCoupon(result);
+    } catch (error) {
+      alert(`使用に失敗しました: ${error.message}`);
     }
+  }
 
-    function closeModal(force=false){
-      if (!confirmFinished && !force) return;
-      $('overlay').classList.remove('show');
-      clearInterval(countdownTimer);
-      countdownTimer = null;
-    }
+  document.getElementById('issueBtn').addEventListener('click', issueCoupon);
+  document.getElementById('reloadBtn').addEventListener('click', loadCurrent);
 
-    function startCountdown(){
-      clearInterval(countdownTimer);
-      countdownTimer = setInterval(async ()=>{
-        remaining -= 1;
-        $('countText').textContent = remaining;
-        $('countBig').textContent = remaining;
-        if (remaining <= 0) {
-          clearInterval(countdownTimer);
-          await confirmUse();
-        }
-      }, 1000);
-    }
-
-    async function confirmUse(){
-      if (confirmFinished) return;
-      confirmFinished = true;
-      USED.set(true);
-      renderCoupon();
-      $('countBig').textContent = '確定';
-      $('countText').textContent = '0';
-      $('tapToClose').style.display = 'block';
-      try{
-        await fetch('/api/coupon_use.php', {
-          method:'POST',
-          headers:{ 'Content-Type':'application/json' },
-          body: JSON.stringify({
-            displayName: ENV.profile?.displayName || 'guest',
-            userId: ENV.profile?.userId || 'browser-guest'
-          })
-        });
-      }catch{}
-      toast('利用を記録しました');
-    }
-
-    async function shareCoupon(){
-      const text = `${CONFIG.coupon.title} / 現在 ${Number(CONFIG.current.discountRate || 0).toFixed(1)}% OFF`;
-      try{
-        if (ENV.hasLiff && ENV.isInClient && liff.shareTargetPicker) {
-          await liff.shareTargetPicker([{ type:'text', text }]);
-          toast('LINEで共有しました');
-          return;
-        }
-        if (navigator.share) {
-          await navigator.share({ title: CONFIG.coupon.title, text });
-          toast('共有しました');
-          return;
-        }
-        await navigator.clipboard.writeText(text);
-        toast('文言をコピーしました');
-      }catch{
-        toast('共有をキャンセルしました');
-      }
-    }
-
-    function resetUsed(){
-      USED.clear();
-      renderCoupon();
-      toast('本日の利用状態をリセットしました');
-    }
-
-    $('useBtn').addEventListener('click', openModal);
-    $('cancelBtn').addEventListener('click', ()=>{
-      clearInterval(countdownTimer);
-      countdownTimer = null;
-      if (ENV.isInClient && CONFIG.runtime.cancelPolicy === 'confirmInClient') {
-        if (!window.confirm('利用確定をキャンセルしますか？')) return;
-      }
-      $('overlay').classList.remove('show');
-    });
-    $('confirmNowBtn').addEventListener('click', confirmUse);
-    $('overlay').addEventListener('click', (e)=>{ if (e.target.id === 'overlay') closeModal(); });
-    $('shareBtn').addEventListener('click', shareCoupon);
-    $('resetBtn').addEventListener('click', resetUsed);
-
-    (async function boot(){
-      await loadSettings();
-      await initLiffOrBrowser();
-      renderCoupon();
-    })();
-  </script>
+  loadCurrent();
+</script>
 </body>
 </html>
