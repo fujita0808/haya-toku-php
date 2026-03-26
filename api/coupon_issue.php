@@ -17,23 +17,10 @@ try {
         ], 404);
     }
 
-    $now = now_iso();
+    $now = now_tokyo();
+    $current = get_current_plan_discount_payload($plan, $now);
 
-    $startAt = (string)($plan['start_at'] ?? '');
-    $endAt = (string)($plan['end_at'] ?? '');
-
-    if ($startAt === '' || $endAt === '') {
-        json_response([
-            'ok' => false,
-            'error' => [
-                'code' => 'PLAN_PERIOD_MISSING',
-                'message' => 'クーポンプランの公開開始日時または公開終了日時が未設定です。',
-            ],
-        ], 500);
-    }
-
-    $isActive = (bool)($plan['is_active'] ?? false);
-    if (!$isActive) {
+    if (!(bool)($plan['is_active'] ?? false)) {
         json_response([
             'ok' => false,
             'error' => [
@@ -43,11 +30,7 @@ try {
         ], 403);
     }
 
-    $nowDt = new DateTimeImmutable($now);
-    $startDt = new DateTimeImmutable($startAt);
-    $endDt = new DateTimeImmutable($endAt);
-
-    if ($nowDt < $startDt || $nowDt > $endDt) {
+    if (!$current['is_issuable']) {
         json_response([
             'ok' => false,
             'error' => [
@@ -56,21 +39,18 @@ try {
             ],
             'plan' => [
                 'id' => $plan['id'] ?? null,
-                'title' => $plan['title'] ?? null,
-                'start_at' => $startAt,
-                'end_at' => $endAt,
+                'title' => $plan['title'] ?? '',
+                'start_at' => $plan['start_at'] ?? null,
+                'end_at' => $plan['end_at'] ?? null,
             ],
         ], 403);
     }
-
-    $issuedDiscountRate = calculate_issue_discount_rate($plan, $now);
 
     $sql = <<<SQL
 INSERT INTO coupons (
     coupon_code,
     coupon_plan_id,
     issued_at,
-    issued_discount_rate,
     used_at,
     used_discount_rate,
     created_at,
@@ -79,7 +59,6 @@ INSERT INTO coupons (
     :coupon_code,
     :coupon_plan_id,
     :issued_at,
-    :issued_discount_rate,
     NULL,
     NULL,
     :created_at,
@@ -90,19 +69,16 @@ SQL;
 
     $couponId = null;
     $couponCode = null;
-    $lastException = null;
 
     for ($attempt = 0; $attempt < 5; $attempt++) {
         $candidateCode = substr(bin2hex(random_bytes(8)), 0, 8);
 
         try {
             $stmt = db()->prepare($sql);
-
             $ok = $stmt->execute([
                 ':coupon_code' => $candidateCode,
                 ':coupon_plan_id' => $plan['id'],
                 ':issued_at' => $now,
-                ':issued_discount_rate' => $issuedDiscountRate,
                 ':created_at' => $now,
                 ':updated_at' => $now,
             ]);
@@ -120,19 +96,13 @@ SQL;
 
             $couponId = $insertedId;
             $couponCode = $candidateCode;
-            $lastException = null;
             break;
         } catch (PDOException $e) {
-            $lastException = $e;
-
             if ($e->getCode() === '23505') {
                 continue;
             }
 
             throw new RuntimeException('クーポン発行中にDBエラーが発生しました。', 0, $e);
-        } catch (Throwable $e) {
-            $lastException = $e;
-            throw $e;
         }
     }
 
@@ -157,19 +127,17 @@ SQL;
             'description' => $plan['description'] ?? '',
             'issued_at' => $now,
             'issued_date' => date('Y-m-d', strtotime($now)),
-            'discount_rate' => $issuedDiscountRate,
-            'discount_percent' => round($issuedDiscountRate * 100, 2),
             'status' => 'available',
+            'current_discount_rate' => $current['discount_rate'],
+            'current_discount_percent' => $current['discount_percent'],
         ],
         'plan' => [
             'id' => $plan['id'],
             'title' => $plan['title'] ?? '',
-            'start_at' => $startAt,
-            'end_at' => $endAt,
-            'initial_discount_rate' => normalize_discount_rate($plan['initial_discount_rate'] ?? 0),
-            'min_discount_rate' => normalize_discount_rate($plan['min_discount_rate'] ?? 0),
-            'daily_decay_rate' => round(calculate_daily_decay_rate($plan), 4),
+            'start_at' => $plan['start_at'] ?? null,
+            'end_at' => $plan['end_at'] ?? null,
         ],
+        'note' => '未使用クーポンの割引率は固定ではありません。使用時点の割引率が適用されます。',
     ], 201);
 } catch (Throwable $e) {
     json_response([

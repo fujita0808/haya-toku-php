@@ -23,13 +23,11 @@ SELECT
     c.coupon_code,
     c.coupon_plan_id,
     c.issued_at,
-    c.issued_discount_rate,
     c.used_at,
     c.used_discount_rate,
-    p.id AS plan_id,
-    p.title,
-    p.description,
-    p.is_active
+    c.created_at,
+    c.updated_at,
+    p.*
 FROM coupons c
 INNER JOIN coupon_plans p
     ON c.coupon_plan_id = p.id
@@ -46,9 +44,9 @@ SQL;
         throw new RuntimeException('クーポン情報の取得に失敗しました。');
     }
 
-    $coupon = $stmt->fetch(PDO::FETCH_ASSOC);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$coupon) {
+    if (!$row) {
         json_response([
             'ok' => false,
             'error' => [
@@ -59,7 +57,9 @@ SQL;
         ], 404);
     }
 
-    if (!(bool)$coupon['is_active']) {
+    $plan = decode_plan_row($row);
+
+    if (!(bool)($plan['is_active'] ?? false)) {
         json_response([
             'ok' => false,
             'error' => [
@@ -70,33 +70,33 @@ SQL;
         ], 403);
     }
 
-    $issuedDiscountRate = isset($coupon['issued_discount_rate'])
-        ? (float)$coupon['issued_discount_rate']
-        : null;
+    $now = now_tokyo();
+    $current = get_current_plan_discount_payload($plan, $now);
 
-    $elapsedDays = calculateElapsedDaysByDate((string)$coupon['issued_at']);
+    $baseCoupon = [
+        'id' => $row['id'],
+        'coupon_code' => $row['coupon_code'],
+        'coupon_plan_id' => $row['coupon_plan_id'],
+        'title' => $plan['title'] ?? '',
+        'description' => $plan['description'] ?? '',
+        'issued_at' => $row['issued_at'],
+        'issued_date' => !empty($row['issued_at']) ? date('Y-m-d', strtotime((string)$row['issued_at'])) : null,
+    ];
 
-    if (!empty($coupon['used_at'])) {
+    if (!empty($row['used_at'])) {
+        $usedRate = isset($row['used_discount_rate']) ? (float)$row['used_discount_rate'] : null;
+
         json_response([
             'ok' => true,
             'coupon_code' => $couponCode,
-            'coupon' => [
-                'id' => $coupon['id'],
-                'coupon_code' => $coupon['coupon_code'],
-                'coupon_plan_id' => $coupon['coupon_plan_id'],
-                'title' => $coupon['title'],
-                'description' => $coupon['description'],
-                'issued_at' => $coupon['issued_at'],
-                'issued_date' => date('Y-m-d', strtotime((string)$coupon['issued_at'])),
-                'elapsed_days' => $elapsedDays,
-                'issued_discount_rate' => $issuedDiscountRate,
-                'issued_discount_percent' => $issuedDiscountRate !== null ? round($issuedDiscountRate * 100, 2) : null,
-                'used_at' => $coupon['used_at'],
-                'used_discount_rate' => isset($coupon['used_discount_rate']) ? (float)$coupon['used_discount_rate'] : null,
-                'used_discount_percent' => isset($coupon['used_discount_rate']) ? round(((float)$coupon['used_discount_rate']) * 100, 2) : null,
-                'discount_rate' => $issuedDiscountRate,
-                'discount_percent' => $issuedDiscountRate !== null ? round($issuedDiscountRate * 100, 2) : null,
+            'coupon' => $baseCoupon + [
+                'used_at' => $row['used_at'],
+                'used_discount_rate' => $usedRate,
+                'used_discount_percent' => $usedRate !== null ? round($usedRate * 100, 2) : null,
+                'discount_rate' => $usedRate,
+                'discount_percent' => $usedRate !== null ? round($usedRate * 100, 2) : null,
                 'status' => 'used',
+                'message' => 'このクーポンは使用済みです。',
             ],
         ]);
     }
@@ -104,20 +104,19 @@ SQL;
     json_response([
         'ok' => true,
         'coupon_code' => $couponCode,
-        'coupon' => [
-            'id' => $coupon['id'],
-            'coupon_code' => $coupon['coupon_code'],
-            'coupon_plan_id' => $coupon['coupon_plan_id'],
-            'title' => $coupon['title'],
-            'description' => $coupon['description'],
-            'issued_at' => $coupon['issued_at'],
-            'issued_date' => date('Y-m-d', strtotime((string)$coupon['issued_at'])),
-            'elapsed_days' => $elapsedDays,
-            'issued_discount_rate' => $issuedDiscountRate,
-            'issued_discount_percent' => $issuedDiscountRate !== null ? round($issuedDiscountRate * 100, 2) : null,
-            'discount_rate' => $issuedDiscountRate,
-            'discount_percent' => $issuedDiscountRate !== null ? round($issuedDiscountRate * 100, 2) : null,
+        'coupon' => $baseCoupon + [
+            'used_at' => null,
+            'current_discount_rate' => $current['discount_rate'],
+            'current_discount_percent' => $current['discount_percent'],
+            'discount_rate' => $current['discount_rate'],
+            'discount_percent' => $current['discount_percent'],
             'status' => 'available',
+            'message' => '現在の割引率です。未使用クーポンは日ごとに割引率が変動します。',
+        ],
+        'public_period' => [
+            'start_at' => $plan['start_at'] ?? null,
+            'end_at' => $plan['end_at'] ?? null,
+            'is_issuable' => $current['is_issuable'],
         ],
     ]);
 } catch (Throwable $e) {

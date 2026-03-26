@@ -3,174 +3,165 @@
 declare(strict_types=1);
 
 /**
- * 文字列/数値を 0.0〜1.0 の割引率に正規化する
- * 例:
- *   0.2  -> 0.2
- *   20   -> 0.2
- *   null -> 0.0
+ * 割引率を0〜1に丸める
  */
-function normalize_discount_rate(mixed $value): float
+function normalize_discount_rate(float $rate): float
 {
-    if ($value === null || $value === '') {
-        return 0.0;
-    }
-
-    $rate = (float)$value;
-
-    if ($rate > 1.0) {
-        $rate = $rate / 100.0;
-    }
-
-    if ($rate < 0.0) {
-        return 0.0;
-    }
-
-    if ($rate > 1.0) {
-        return 1.0;
-    }
-
-    return $rate;
+    return max(0.0, min(1.0, $rate));
 }
 
 /**
- * 日付文字列を DateTimeImmutable にする
+ * 現在時刻（Tokyo）
  */
-function to_tokyo_datetime(string $datetime): DateTimeImmutable
+function now_tokyo(): string
 {
-    return new DateTimeImmutable($datetime, new DateTimeZone('Asia/Tokyo'));
+    return date('Y-m-d H:i:s');
 }
 
 /**
- * 公開開始日〜公開終了日の「日数差」を返す
- * 例:
- *   3/24 00:00 ~ 3/31 23:59 の場合、日付差は 7
- *
- * 線形減衰の分母として 0 を避けるため、最小 1 を返す
+ * 公開中か
  */
-function calculate_public_period_days(string $startAt, string $endAt): int
+function is_plan_public_now(array $plan, ?string $now = null): bool
 {
-    $start = to_tokyo_datetime($startAt)->setTime(0, 0, 0);
-    $end = to_tokyo_datetime($endAt)->setTime(0, 0, 0);
+    $now = $now ?? now_tokyo();
 
-    $days = (int)$start->diff($end)->days;
+    if (empty($plan['start_at']) || empty($plan['end_at'])) {
+        return false;
+    }
 
-    return max(1, $days);
+    return ($now >= $plan['start_at'] && $now <= $plan['end_at']);
 }
 
 /**
- * 指定日の発行時点での経過日数を返す
- * 発行日当日は 0
+ * 発行可能か
  */
-function calculate_elapsed_days_from_plan_start(
-    string $planStartAt,
-    ?string $issueAt = null
-): int {
-    $issueAt = $issueAt ?: date('Y-m-d H:i:s');
+function is_plan_issuable_now(array $plan, ?string $now = null): bool
+{
+    if (!$plan['is_active']) {
+        return false;
+    }
 
-    $start = to_tokyo_datetime($planStartAt)->setTime(0, 0, 0);
-    $issue = to_tokyo_datetime($issueAt)->setTime(0, 0, 0);
+    return is_plan_public_now($plan, $now);
+}
 
-    $days = (int)$start->diff($issue)->days;
+/**
+ * 公開日数
+ */
+function get_public_period_days(array $plan): int
+{
+    $start = strtotime($plan['start_at']);
+    $end   = strtotime($plan['end_at']);
 
-    if ($issue < $start) {
+    if (!$start || !$end || $end < $start) {
+        return 1;
+    }
+
+    return max(1, (int)floor(($end - $start) / 86400) + 1);
+}
+
+/**
+ * 経過日数
+ */
+function get_elapsed_days(array $plan, ?string $now = null): int
+{
+    $now = $now ?? now_tokyo();
+
+    $start = strtotime($plan['start_at']);
+    $current = strtotime($now);
+
+    if (!$start || !$current || $current < $start) {
         return 0;
     }
 
-    return max(0, $days);
+    return (int)floor(($current - $start) / 86400);
 }
 
 /**
- * 日次減衰率を計算する
+ * model用入力
  */
-function calculate_daily_decay_rate(array $plan): float
+function get_model_inputs(array $plan): array
 {
-    $initial = normalize_discount_rate($plan['initial_discount_rate'] ?? 0);
-    $min = normalize_discount_rate($plan['min_discount_rate'] ?? 0);
-
-    if ($min > $initial) {
-        $min = $initial;
-    }
-
-    $startAt = (string)($plan['start_at'] ?? '');
-    $endAt = (string)($plan['end_at'] ?? '');
-
-    if ($startAt === '' || $endAt === '') {
-        return 0.0;
-    }
-
-    $periodDays = calculate_public_period_days($startAt, $endAt);
-    $diff = $initial - $min;
-
-    if ($diff <= 0) {
-        return 0.0;
-    }
-
-    return $diff / $periodDays;
+    return [
+        'unit_price'        => (float)($plan['unit_price'] ?? 1000),
+        'cost_rate'         => (float)($plan['cost_rate'] ?? 0.3),
+        'viewers'           => (int)($plan['expected_viewers'] ?? 1000),
+        'min_rate'          => (float)($plan['min_discount_rate'] ?? 0.05),
+        'max_rate'          => (float)($plan['initial_discount_rate'] ?? 0.5),
+        'step'              => (float)($plan['curve_step'] ?? 0.01),
+        'mode'              => (string)($plan['target_metric'] ?? 'gross_profit'),
+    ];
 }
 
 /**
- * 発行時点の割引率を計算する
- * 0324仕様:
- * - 減衰基準は公開期間
- * - 発行日時点の日付で計算
- * - 発行後は固定
- * - 線形減衰
+ * 割引率カーブ生成
  */
-function calculate_issue_discount_rate(array $plan, ?string $issueAt = null): float
+function build_plan_discount_timeline(array $plan): array
 {
-    $initial = normalize_discount_rate($plan['initial_discount_rate'] ?? 0);
-    $min = normalize_discount_rate($plan['min_discount_rate'] ?? 0);
+    $inputs = get_model_inputs($plan);
 
-    if ($min > $initial) {
-        $min = $initial;
+    $curve = build_discount_curve(
+        $inputs['unit_price'],
+        $inputs['cost_rate'],
+        $inputs['viewers'],
+        $inputs['min_rate'],
+        $inputs['max_rate'],
+        $inputs['step']
+    );
+
+    $days = get_public_period_days($plan);
+    $result = [];
+
+    if (empty($curve)) {
+        return [];
     }
 
-    $startAt = (string)($plan['start_at'] ?? '');
-    $endAt = (string)($plan['end_at'] ?? '');
+    for ($i = 0; $i < $days; $i++) {
+        $index = min($i, count($curve) - 1);
+        $rate = normalize_discount_rate($curve[$index]['discount_rate']);
 
-    if ($startAt === '' || $endAt === '') {
-        return $initial;
+        $result[] = [
+            'day' => $i,
+            'discount_rate' => $rate,
+            'discount_percent' => round($rate * 100, 2),
+        ];
     }
 
-    $elapsedDays = calculate_elapsed_days_from_plan_start($startAt, $issueAt);
-    $dailyDecayRate = calculate_daily_decay_rate($plan);
-
-    $rate = $initial - ($elapsedDays * $dailyDecayRate);
-
-    if ($rate < $min) {
-        $rate = $min;
-    }
-
-    if ($rate > $initial) {
-        $rate = $initial;
-    }
-
-    return round($rate, 4);
+    return $result;
 }
 
 /**
- * 旧コード互換用
- * 今後は発行時のみ使う
+ * 現在割引率
  */
-function calculate_discount_rate(array $plan, ?string $issueAt = null): float
+function get_current_plan_discount_rate(array $plan, ?string $now = null): ?float
 {
-    return calculate_issue_discount_rate($plan, $issueAt);
+    if (!is_plan_public_now($plan, $now)) {
+        return null;
+    }
+
+    $timeline = build_plan_discount_timeline($plan);
+    $elapsed = get_elapsed_days($plan, $now);
+
+    if (!isset($timeline[$elapsed])) {
+        return end($timeline)['discount_rate'] ?? null;
+    }
+
+    return $timeline[$elapsed]['discount_rate'];
 }
 
 /**
- * 発行日からの経過日数
- * 参照用。割引率の再計算には使わない
+ * API用payload
  */
-function calculateElapsedDaysByDate(string $issuedAt, ?string $now = null): int
+function get_current_plan_discount_payload(array $plan, ?string $now = null): array
 {
-    $issued = to_tokyo_datetime($issuedAt)->setTime(0, 0, 0);
-    $current = $now
-        ? to_tokyo_datetime($now)->setTime(0, 0, 0)
-        : (new DateTimeImmutable('now', new DateTimeZone('Asia/Tokyo')))->setTime(0, 0, 0);
+    $rate = get_current_plan_discount_rate($plan, $now);
 
-    if ($current < $issued) {
-        return 0;
-    }
-
-    return (int)$issued->diff($current)->days;
+    return [
+        'discount_rate' => $rate,
+        'discount_percent' => $rate !== null ? round($rate * 100, 2) : null,
+        'is_issuable' => is_plan_issuable_now($plan, $now),
+        'elapsed_days' => get_elapsed_days($plan, $now),
+        'message' => $rate === null
+            ? '公開期間外です'
+            : '現在の割引率です（未使用クーポンは日々変動します）',
+    ];
 }

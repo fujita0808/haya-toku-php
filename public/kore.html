@@ -1,581 +1,161 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>早得クーポン | HAYA-TOKU（🍊ver / PHP PoC）</title>
+  <meta charset="UTF-8" />
+  <title>HAYA-TOKU（🍊ver / PHP PoC）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <style>
-    :root {
-      --bg: #fff7ec;
-      --card: #ffffff;
-      --text: #222222;
-      --muted: #666666;
-      --line: #eadfce;
-      --accent: #ff7a00;
-      --accent-2: #ffb300;
-      --ok: #0a7f45;
-      --warn: #9a5b00;
-      --error: #b00020;
-      --disabled: #f3efe8;
-      --disabled-text: #9b9388;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
     body {
-      margin: 0;
-      background: linear-gradient(180deg, #fff7ec 0%, #fff2df 100%);
-      color: var(--text);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-    }
-
-    .wrap {
-      max-width: 760px;
-      margin: 0 auto;
-      padding: 20px 16px 48px;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid rgba(255, 122, 0, 0.14);
-      border-radius: 22px;
-      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.08);
-      padding: 20px;
-      margin-bottom: 16px;
-    }
-
-    .title {
-      font-size: 26px;
-      font-weight: 800;
-      margin: 0 0 8px;
-      line-height: 1.35;
-    }
-
-    .desc {
-      color: var(--muted);
-      line-height: 1.7;
-      margin: 0;
-      white-space: pre-wrap;
-    }
-
-    .hero {
+      font-family: sans-serif;
       text-align: center;
-      padding: 26px 18px;
-      background: linear-gradient(180deg, #fffaf4 0%, #fff2df 100%);
+      padding: 20px;
+      background: #fff;
     }
-
-    .hero-label {
-      font-size: 13px;
-      color: var(--muted);
+    #rate {
+      font-size: 48px;
+      font-weight: bold;
+      color: #ff6600;
+      margin: 20px 0;
+    }
+    #product {
+      font-size: 20px;
       margin-bottom: 10px;
-      font-weight: 700;
+    }
+    #btn {
+      padding: 15px 25px;
+      font-size: 18px;
+      background: #ff6600;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+    }
+    #btn:disabled {
+      background: #ccc;
     }
 
-    .hero-rate {
-      font-size: 54px;
-      font-weight: 900;
-      line-height: 1;
-      color: var(--accent);
-      letter-spacing: -0.03em;
-      margin: 0;
-    }
-
-    .hero-note {
-      margin-top: 10px;
-      color: var(--warn);
-      font-size: 14px;
-      line-height: 1.7;
-      font-weight: 700;
-    }
-
-    .coupon-name {
-      margin-top: 14px;
-      font-size: 22px;
-      font-weight: 900;
-      line-height: 1.4;
-      color: #222;
-    }
-
-    .meta {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-
-    .meta-item {
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px;
-      background: #fffdfa;
-    }
-
-    .meta-label {
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 6px;
-      font-weight: 700;
-    }
-
-    .meta-value {
-      font-size: 16px;
-      font-weight: 800;
-      line-height: 1.5;
-      word-break: break-word;
-    }
-
-    .section-title {
-      margin: 0 0 10px;
-      font-size: 17px;
-      font-weight: 900;
-    }
-
-    .rules {
-      margin: 0;
-      padding-left: 1.2em;
-      line-height: 1.8;
-    }
-
-    .rules li + li {
-      margin-top: 2px;
-    }
-
-    .timeline {
-      display: grid;
-      gap: 10px;
-    }
-
-    .timeline-row {
-      display: flex;
-      justify-content: space-between;
+    /* モーダル */
+    #modal {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
+      display: none;
       align-items: center;
-      gap: 12px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px 14px;
-      background: #fffdfa;
+      justify-content: center;
     }
-
-    .timeline-date {
-      font-size: 14px;
-      font-weight: 700;
-      color: #444;
+    #modalContent {
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
     }
-
-    .timeline-rate {
-      font-size: 16px;
-      font-weight: 900;
-      color: var(--accent);
-      white-space: nowrap;
+    #countdown {
+      font-size: 40px;
+      margin: 10px 0;
     }
-
-    .actions {
-      display: grid;
-      gap: 10px;
-    }
-
-    button {
-      width: 100%;
-      border: 0;
-      border-radius: 16px;
-      padding: 16px;
-      font-size: 17px;
-      font-weight: 900;
-      cursor: pointer;
-      transition: opacity .2s ease;
-    }
-
-    button:disabled {
-      background: var(--disabled);
-      color: var(--disabled-text);
-      cursor: not-allowed;
-      border: 1px solid #ddd4c8;
-    }
-
-    .btn-primary {
-      background: linear-gradient(180deg, var(--accent), var(--accent-2));
-      color: white;
-    }
-
-    .btn-secondary {
-      background: white;
-      color: #333;
-      border: 1px solid #ddd;
-    }
-
-    .status-box {
-      border-radius: 16px;
-      padding: 14px 16px;
-      line-height: 1.7;
-      font-size: 14px;
-      border: 1px solid var(--line);
-      background: #fffdfa;
-    }
-
-    .issued-box {
-      background: #fff8ef;
-      border: 1px solid #ffd9ad;
-    }
-
-    .used-box {
-      background: #f5fbf7;
-      border: 1px solid #bfdfc8;
-    }
-
-    .info-box {
-      background: #fffaf2;
-      border: 1px solid #ffd9ad;
-      color: #7a4b00;
-    }
-
-    .error-box {
-      background: #fff5f7;
-      border: 1px solid #f0c2cc;
-      color: var(--error);
-    }
-
-    .muted {
-      color: var(--muted);
-    }
-
-    .strong {
-      font-weight: 900;
-    }
-
-    .hide {
-      display: none !important;
-    }
-
-    .footer-space {
-      height: 10px;
-    }
-
-    @media (max-width: 640px) {
-      .meta {
-        grid-template-columns: 1fr;
-      }
-
-      .hero-rate {
-        font-size: 46px;
-      }
-
-      .coupon-name {
-        font-size: 20px;
-      }
+    #couponName {
+      font-size: 22px;
+      font-weight: bold;
+      margin-top: 10px;
     }
   </style>
 </head>
+
 <body>
-<div class="wrap">
-  <div class="card hero">
-    <div class="hero-label">今この時点で発行すると</div>
-    <div id="heroRate" class="hero-rate">--</div>
-    <div id="heroNote" class="hero-note">この割引率でクーポンが確定します</div>
-    <div id="couponName" class="coupon-name">クーポン名を読み込み中…</div>
-  </div>
 
-  <div class="card">
-    <h1 id="title" class="title">読み込み中…</h1>
-    <p id="description" class="desc"></p>
-  </div>
+  <div id="product">---</div>
+  <div id="rate">--%</div>
 
-  <div class="card">
-    <h2 class="section-title">基本情報</h2>
-    <div class="meta">
-      <div class="meta-item">
-        <div class="meta-label">公開期間</div>
-        <div id="period" class="meta-value">--</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">割引率の考え方</div>
-        <div class="meta-value">日単位で減衰 / 発行時に固定</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">初期割引率</div>
-        <div id="initialRate" class="meta-value">--</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">最低割引率</div>
-        <div id="minRate" class="meta-value">--</div>
-      </div>
+  <button id="btn">このクーポンを使う</button>
+
+  <!-- モーダル -->
+  <div id="modal">
+    <div id="modalContent">
+      <div>店員さんに見せてください</div>
+      <div id="countdown">10</div>
+      <div id="couponName"></div>
     </div>
   </div>
-
-  <div id="currentStateBox" class="card status-box info-box hide"></div>
-  <div id="errorBox" class="card status-box error-box hide"></div>
-
-  <div class="card">
-    <h2 class="section-title">利用条件</h2>
-    <ul id="rules" class="rules"></ul>
-  </div>
-
-  <div class="card">
-    <h2 class="section-title">日別の発行時割引率</h2>
-    <div id="timeline" class="timeline"></div>
-  </div>
-
-  <div class="card">
-    <h2 class="section-title">クーポン操作</h2>
-    <div class="actions">
-      <button id="issueBtn" class="btn-primary" type="button">このクーポンを発行する</button>
-      <button id="reloadBtn" class="btn-secondary" type="button">最新状態を再読込</button>
-    </div>
-  </div>
-
-  <div id="issuedBox" class="card status-box issued-box hide"></div>
-  <div id="usedBox" class="card status-box used-box hide"></div>
-
-  <div class="footer-space"></div>
-</div>
 
 <script>
-  const state = {
-    current: null,
-    issuedCoupon: null,
-  };
+const API_BASE = "https://haya-toku-php.onrender.com/api";
 
-  function escapeHtml(value) {
-    return String(value ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+let currentCouponId = null;
+let countdownTimer = null;
+
+/* 初期ロード */
+async function loadCurrent() {
+  const res = await fetch(API_BASE + "/coupon_current.php");
+  const data = await res.json();
+
+  if (!data.ok) {
+    alert(data.message || "エラー");
+    return;
   }
 
-  function formatPercent(value) {
-    if (value === null || value === undefined || value === '') {
-      return '--';
+  document.getElementById("product").innerText = data.plan.product_name;
+  document.getElementById("rate").innerText = Math.round(data.rate * 100) + "%";
+}
+
+/* クーポン発行 */
+async function issueCoupon() {
+  const res = await fetch(API_BASE + "/coupon_issue.php", {
+    method: "POST"
+  });
+  const data = await res.json();
+
+  if (!data.ok) {
+    alert(data.message || "発行エラー");
+    return;
+  }
+
+  currentCouponId = data.coupon_id;
+
+  openModal(data.plan.product_name);
+}
+
+/* 使用確定 */
+async function useCoupon() {
+  if (!currentCouponId) return;
+
+  await fetch(API_BASE + "/coupon_use.php", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      coupon_id: currentCouponId
+    })
+  });
+}
+
+/* モーダル */
+function openModal(productName) {
+  document.getElementById("modal").style.display = "flex";
+  document.getElementById("couponName").innerText = productName;
+
+  let count = 10;
+  document.getElementById("countdown").innerText = count;
+
+  countdownTimer = setInterval(() => {
+    count--;
+    document.getElementById("countdown").innerText = count;
+
+    if (count <= 0) {
+      clearInterval(countdownTimer);
+      useCoupon();
     }
+  }, 1000);
+}
 
-    const num = Number(value);
-    if (!Number.isFinite(num)) {
-      return '--';
-    }
+/* イベント */
+document.getElementById("btn").onclick = issueCoupon;
 
-    return `${num.toFixed(2).replace(/\.00$/, '')}%`;
-  }
+/* 起動 */
+loadCurrent();
 
-  function formatDateTime(value) {
-    if (!value) {
-      return '--';
-    }
-
-    return String(value).replace('T', ' ');
-  }
-
-  function setText(id, text) {
-    const el = document.getElementById(id);
-    if (el) {
-      el.textContent = text;
-    }
-  }
-
-  function show(el) {
-    if (el) {
-      el.classList.remove('hide');
-    }
-  }
-
-  function hide(el) {
-    if (el) {
-      el.classList.add('hide');
-    }
-  }
-
-  function clearStatusBoxes() {
-    hide(document.getElementById('errorBox'));
-    hide(document.getElementById('currentStateBox'));
-  }
-
-  function showCurrentState(message) {
-    const box = document.getElementById('currentStateBox');
-    box.innerHTML = `<div>${escapeHtml(message)}</div>`;
-    show(box);
-  }
-
-  function showError(message) {
-    const box = document.getElementById('errorBox');
-    box.innerHTML = `<div>${escapeHtml(message)}</div>`;
-    show(box);
-  }
-
-  async function fetchJson(url, options = {}) {
-    const response = await fetch(url, options);
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      const errorCode = data?.error?.code || `HTTP_${response.status}`;
-      const errorMessage =
-        data?.error?.message ||
-        data?.message ||
-        `HTTP ${response.status}`;
-
-      const error = new Error(errorMessage);
-      error.code = errorCode;
-      error.status = response.status;
-      error.payload = data;
-      throw error;
-    }
-
-    return data;
-  }
-
-  function renderCurrent(data) {
-    state.current = data;
-    clearStatusBoxes();
-
-    document.title = data?.app?.documentTitle || '早得クーポン | HAYA-TOKU（🍊ver / PHP PoC）';
-
-    const coupon = data?.coupon || {};
-    const publicPeriod = data?.public_period || {};
-    const current = data?.current || {};
-    const timeline = Array.isArray(data?.timeline) ? data.timeline : [];
-    const isIssuable = Boolean(publicPeriod?.is_issuable);
-
-    setText('title', coupon.title || '無題');
-    setText('description', coupon.description || '');
-    setText('couponName', coupon.product_name || coupon.title || '対象クーポン');
-    setText('heroRate', formatPercent(current.discount_percent));
-    setText(
-      'heroNote',
-      current.message || (isIssuable
-        ? 'この割引率でクーポンが確定します'
-        : '現在はクーポンを発行できません')
-    );
-    setText(
-      'period',
-      `${formatDateTime(publicPeriod.start_at)} ～ ${formatDateTime(publicPeriod.end_at)}`
-    );
-    setText('initialRate', formatPercent(current.initial_discount_percent));
-    setText('minRate', formatPercent(current.min_discount_percent));
-
-    const rulesEl = document.getElementById('rules');
-    const rules = Array.isArray(coupon.rules) ? coupon.rules : [];
-    rulesEl.innerHTML = rules.length
-      ? rules.map(rule => `<li>${escapeHtml(rule)}</li>`).join('')
-      : '<li>条件はありません</li>';
-
-    const timelineEl = document.getElementById('timeline');
-    timelineEl.innerHTML = timeline.length
-      ? timeline.map(row => `
-          <div class="timeline-row">
-            <div class="timeline-date">${escapeHtml(row.date)}</div>
-            <div class="timeline-rate">${formatPercent(row.discount_percent)}</div>
-          </div>
-        `).join('')
-      : '<div class="muted">タイムラインはありません</div>';
-
-    const issueBtn = document.getElementById('issueBtn');
-    issueBtn.disabled = !isIssuable;
-    issueBtn.textContent = isIssuable
-      ? 'このクーポンを発行する'
-      : '現在は発行できません';
-
-    if (!coupon.is_active) {
-      showCurrentState('このクーポンプランは現在非公開です。');
-      return;
-    }
-
-    if (!isIssuable) {
-      showCurrentState('公開期間外のため、現在はクーポンを発行できません。');
-    }
-  }
-
-  function renderIssuedCoupon(coupon) {
-    const issuedBox = document.getElementById('issuedBox');
-    const usedBox = document.getElementById('usedBox');
-
-    hide(usedBox);
-    show(issuedBox);
-
-    issuedBox.innerHTML = `
-      <div class="strong">発行済みクーポン</div>
-      <div>クーポンコード: <span class="strong">${escapeHtml(coupon.coupon_code)}</span></div>
-      <div>発行日: ${escapeHtml(coupon.issued_date || '')}</div>
-      <div>確定割引率: <span class="strong">${formatPercent(coupon.discount_percent)}</span></div>
-      <div class="muted">このクーポンの割引率は発行時点で固定されています。</div>
-      <div style="margin-top:12px;">
-        <button id="useBtn" class="btn-primary" type="button">このクーポンを使用する</button>
-      </div>
-    `;
-
-    const useBtn = document.getElementById('useBtn');
-    useBtn.addEventListener('click', useIssuedCoupon);
-  }
-
-  function renderUsedCoupon(result) {
-    const issuedBox = document.getElementById('issuedBox');
-    const usedBox = document.getElementById('usedBox');
-
-    hide(issuedBox);
-    show(usedBox);
-
-    usedBox.innerHTML = `
-      <div class="strong">使用済みクーポン</div>
-      <div>クーポンコード: <span class="strong">${escapeHtml(result.coupon_code || '')}</span></div>
-      <div>使用日時: ${escapeHtml(result.used_at || '')}</div>
-      <div>適用割引率: <span class="strong">${formatPercent(result.used_discount_percent)}</span></div>
-      <div class="muted">使用時に再計算は行わず、発行時の確定割引率を適用しています。</div>
-    `;
-  }
-
-  function formatApiError(prefix, error) {
-    const code = error?.code ? ` [${error.code}]` : '';
-    const message = error?.message || '不明なエラーです。';
-    return `${prefix}${code}: ${message}`;
-  }
-
-  async function loadCurrent() {
-    hide(document.getElementById('issuedBox'));
-    hide(document.getElementById('usedBox'));
-
-    try {
-      const data = await fetchJson('/api/coupon_current.php');
-      renderCurrent(data);
-    } catch (error) {
-      showError(formatApiError('読み込みに失敗しました', error));
-    }
-  }
-
-  async function issueCoupon() {
-    try {
-      const data = await fetchJson('/api/coupon_issue.php', {
-        method: 'POST',
-      });
-
-      state.issuedCoupon = data.coupon || null;
-      if (!state.issuedCoupon) {
-        throw new Error('発行結果に coupon がありません。');
-      }
-
-      renderIssuedCoupon(state.issuedCoupon);
-    } catch (error) {
-      showError(formatApiError('発行に失敗しました', error));
-    }
-  }
-
-  async function useIssuedCoupon() {
-    if (!state.issuedCoupon?.coupon_code) {
-      showError('クーポン情報がありません。');
-      return;
-    }
-
-    try {
-      const result = await fetchJson(
-        `/api/coupon_use.php?couponCode=${encodeURIComponent(state.issuedCoupon.coupon_code)}`
-      );
-      renderUsedCoupon(result);
-    } catch (error) {
-      showError(formatApiError('使用に失敗しました', error));
-    }
-  }
-
-  document.getElementById('issueBtn').addEventListener('click', issueCoupon);
-  document.getElementById('reloadBtn').addEventListener('click', loadCurrent);
-
-  loadCurrent();
 </script>
+
 </body>
 </html>

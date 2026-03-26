@@ -1,70 +1,77 @@
--- =========================================
--- HAYA-TOKU schema.sql（0324仕様）
--- 正: scripts/init_db.php
--- PostgreSQL 前提
--- =========================================
+BEGIN;
 
 CREATE TABLE IF NOT EXISTS coupon_plans (
     id VARCHAR(64) PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
-    description TEXT,
-    product_name VARCHAR(255),
+    description TEXT NOT NULL DEFAULT '',
+    product_name VARCHAR(255) NOT NULL DEFAULT '',
+
+    unit_price NUMERIC(10,2) NOT NULL DEFAULT 0,
+    cost_rate NUMERIC(5,4) NOT NULL DEFAULT 0.3000,
+
+    initial_discount_rate NUMERIC(5,4) NOT NULL DEFAULT 0.3000,
+    min_discount_rate NUMERIC(5,4) NOT NULL DEFAULT 0.0500,
+
+    expected_viewers INTEGER NOT NULL DEFAULT 1000,
+    target_metric VARCHAR(32) NOT NULL DEFAULT 'gross_profit',
+    curve_step NUMERIC(5,4) NOT NULL DEFAULT 0.0100,
+
     start_at TIMESTAMP NOT NULL,
     end_at TIMESTAMP NOT NULL,
-    initial_discount_rate NUMERIC(5,4) NOT NULL,
-    min_discount_rate NUMERIC(5,4) NOT NULL,
-
-    -- 0324仕様では linear / daily_linear を想定
-    discount_mode VARCHAR(50),
-    decay_type VARCHAR(50),
-
-    -- 旧仕様互換カラム（未使用）
-    decay_interval_minutes INTEGER NULL,
-    decay_step_rate NUMERIC(8,4) NULL,
 
     is_active BOOLEAN NOT NULL DEFAULT FALSE,
-    rules TEXT NULL,
-    notes TEXT NULL,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
+
+    rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+    notes TEXT NOT NULL DEFAULT '',
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS coupons (
     id BIGSERIAL PRIMARY KEY,
-    coupon_code VARCHAR(64) NOT NULL UNIQUE,
+    coupon_code VARCHAR(32) NOT NULL UNIQUE,
     coupon_plan_id VARCHAR(64) NOT NULL REFERENCES coupon_plans(id) ON DELETE CASCADE,
 
-    -- 発行時点で確定した割引率（主役）
     issued_at TIMESTAMP NOT NULL,
-    issued_discount_rate NUMERIC(5,4) NOT NULL,
-
-    -- 使用時の記録
     used_at TIMESTAMP NULL,
+
     used_discount_rate NUMERIC(5,4) NULL,
 
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS usage_logs (
     id BIGSERIAL PRIMARY KEY,
     coupon_id BIGINT NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
-    coupon_code VARCHAR(64),
-    event_type VARCHAR(50) NOT NULL,
-    event_at TIMESTAMP NOT NULL,
-    discount_rate NUMERIC(5,4) NULL,
-    meta_json TEXT NULL,
-    created_at TIMESTAMP NOT NULL
+    coupon_plan_id VARCHAR(64) NOT NULL REFERENCES coupon_plans(id) ON DELETE CASCADE,
+
+    used_at TIMESTAMP NOT NULL,
+    used_discount_rate NUMERIC(5,4) NOT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_coupon_plans_is_active
-ON coupon_plans (is_active);
+    ON coupon_plans (is_active);
+
+CREATE INDEX IF NOT EXISTS idx_coupon_plans_updated_at
+    ON coupon_plans (updated_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_coupons_coupon_plan_id
-ON coupons (coupon_plan_id);
+    ON coupons (coupon_plan_id);
 
-CREATE INDEX IF NOT EXISTS idx_coupons_coupon_code
-ON coupons (coupon_code);
+CREATE INDEX IF NOT EXISTS idx_coupons_used_at
+    ON coupons (used_at);
 
 CREATE INDEX IF NOT EXISTS idx_usage_logs_coupon_id
-ON usage_logs (coupon_id);
+    ON usage_logs (coupon_id);
+
+CREATE INDEX IF NOT EXISTS idx_usage_logs_coupon_plan_id
+    ON usage_logs (coupon_plan_id);
+
+CREATE INDEX IF NOT EXISTS idx_usage_logs_used_at
+    ON usage_logs (used_at DESC);
+
+COMMIT;
