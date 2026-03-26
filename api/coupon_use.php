@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../lib/bootstrap.php';
 
-$couponId = trim((string)($_GET['couponId'] ?? ''));
-if ($couponId === '') {
+$couponCode = trim((string)($_GET['couponCode'] ?? $_GET['couponId'] ?? ''));
+if ($couponCode === '') {
     json_response([
         'ok' => false,
-        'error' => 'couponId is required',
+        'error' => [
+            'code' => 'BAD_REQUEST',
+            'message' => 'couponCode が必要です。',
+        ],
     ], 400);
 }
 
@@ -32,30 +35,43 @@ try {
     SQL;
 
     $stmt = db()->prepare($sql);
-    $stmt->execute([
-        ':coupon_code' => $couponId,
+    $ok = $stmt->execute([
+        ':coupon_code' => $couponCode,
     ]);
+
+    if (!$ok) {
+        throw new RuntimeException('クーポン情報の取得に失敗しました。');
+    }
 
     $coupon = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$coupon) {
         json_response([
             'ok' => false,
-            'error' => 'Coupon not found',
+            'error' => [
+                'code' => 'COUPON_NOT_FOUND',
+                'message' => 'クーポンが見つかりません。',
+            ],
         ], 404);
     }
 
     if (!(bool)$coupon['is_active']) {
         json_response([
             'ok' => false,
-            'error' => 'Coupon plan is inactive',
+            'error' => [
+                'code' => 'PLAN_INACTIVE',
+                'message' => 'クーポンプランが非公開です。',
+            ],
         ], 403);
     }
 
     if (!empty($coupon['used_at'])) {
         json_response([
             'ok' => false,
-            'error' => 'Coupon already used',
+            'error' => [
+                'code' => 'COUPON_ALREADY_USED',
+                'message' => 'このクーポンはすでに使用済みです。',
+            ],
         ], 409);
     }
 
@@ -66,7 +82,10 @@ try {
     if ($issuedRate === null) {
         json_response([
             'ok' => false,
-            'error' => 'Issued discount rate is missing',
+            'error' => [
+                'code' => 'ISSUED_RATE_MISSING',
+                'message' => '発行時割引率が見つかりません。',
+            ],
         ], 500);
     }
 
@@ -83,24 +102,31 @@ try {
     SQL;
 
     $updateStmt = db()->prepare($updateSql);
-    $updateStmt->execute([
+    $ok = $updateStmt->execute([
         ':used_at' => $usedAt,
         ':used_discount_rate' => $issuedRate,
         ':updated_at' => $usedAt,
         ':id' => $coupon['id'],
     ]);
 
+    if (!$ok) {
+        throw new RuntimeException('クーポン使用処理の更新に失敗しました。');
+    }
+
     if ($updateStmt->rowCount() === 0) {
         json_response([
             'ok' => false,
-            'error' => 'Coupon already used',
+            'error' => [
+                'code' => 'COUPON_ALREADY_USED',
+                'message' => 'このクーポンはすでに使用済みです。',
+            ],
         ], 409);
     }
 
     json_response([
         'ok' => true,
-        'message' => 'Coupon used successfully',
-        'couponId' => $couponId,
+        'message' => 'クーポンを使用済みにしました。',
+        'coupon_code' => $couponCode,
         'coupon_id' => $coupon['id'],
         'used_discount_rate' => $issuedRate,
         'used_discount_percent' => round($issuedRate * 100, 1),
@@ -109,6 +135,9 @@ try {
 } catch (Throwable $e) {
     json_response([
         'ok' => false,
-        'error' => $e->getMessage(),
+        'error' => [
+            'code' => 'INTERNAL_ERROR',
+            'message' => $e->getMessage(),
+        ],
     ], 500);
 }

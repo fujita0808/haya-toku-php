@@ -18,19 +18,58 @@ function normalize_plan_from_post(array $post): array
     }
 
     $title = trim((string)($post['title'] ?? ''));
+    if ($title === '') {
+        throw new InvalidArgumentException('タイトルを入力してください。');
+    }
+
     $description = trim((string)($post['description'] ?? ''));
     $productName = trim((string)($post['product_name'] ?? ''));
-    $rules = trim((string)($post['rules'] ?? ''));
     $notes = trim((string)($post['notes'] ?? ''));
 
-    $startAt = normalize_datetime_input((string)($post['start_at'] ?? ''));
-    $endAt = normalize_datetime_input((string)($post['end_at'] ?? ''));
+    $rulesText = trim((string)($post['rules_text'] ?? ''));
+    $rules = array_values(
+        array_filter(
+            array_map('trim', preg_split('/\R/u', $rulesText) ?: [])
+        )
+    );
+
+    $startAtRaw = trim((string)($post['start_at'] ?? ''));
+    $endAtRaw = trim((string)($post['end_at'] ?? ''));
+
+    if ($startAtRaw === '') {
+        throw new InvalidArgumentException('公開開始日時を入力してください。');
+    }
+    if ($endAtRaw === '') {
+        throw new InvalidArgumentException('公開終了日時を入力してください。');
+    }
+
+    $startAt = normalize_datetime_input($startAtRaw);
+    $endAt = normalize_datetime_input($endAtRaw);
+
+    $startTs = strtotime($startAt);
+    $endTs = strtotime($endAt);
+
+    if ($startTs === false) {
+        throw new InvalidArgumentException('公開開始日時の形式が正しくありません。');
+    }
+    if ($endTs === false) {
+        throw new InvalidArgumentException('公開終了日時の形式が正しくありません。');
+    }
+    if ($startTs >= $endTs) {
+        throw new InvalidArgumentException('公開終了日時は公開開始日時より後にしてください。');
+    }
 
     $initialDiscountRate = normalize_discount_rate($post['initial_discount_rate'] ?? 0);
     $minDiscountRate = normalize_discount_rate($post['min_discount_rate'] ?? 0);
 
+    if ($initialDiscountRate < 0 || $initialDiscountRate > 1) {
+        throw new InvalidArgumentException('初期割引率は 0〜1 の範囲で入力してください。');
+    }
+    if ($minDiscountRate < 0 || $minDiscountRate > 1) {
+        throw new InvalidArgumentException('最低割引率は 0〜1 の範囲で入力してください。');
+    }
     if ($minDiscountRate > $initialDiscountRate) {
-        $minDiscountRate = $initialDiscountRate;
+        throw new InvalidArgumentException('最低割引率は初期割引率以下にしてください。');
     }
 
     $isActive = !empty($post['is_active']);
@@ -141,11 +180,10 @@ SQL;
 function save_plan(array $plan): array
 {
     $now = now_iso();
-
     $existing = find_plan_by_id((string)$plan['id']);
 
-    if ($existing) {
-        $sql = <<<SQL
+    $sql = $existing
+        ? <<<SQL
 UPDATE coupon_plans
 SET
     title = :title,
@@ -164,9 +202,8 @@ SET
     notes = :notes,
     updated_at = :updated_at
 WHERE id = :id
-SQL;
-    } else {
-        $sql = <<<SQL
+SQL
+        : <<<SQL
 INSERT INTO coupon_plans (
     id,
     title,
@@ -205,9 +242,6 @@ INSERT INTO coupon_plans (
     :updated_at
 )
 SQL;
-    }
-
-    $stmt = db()->prepare($sql);
 
     $params = [
         ':id' => $plan['id'],
@@ -222,7 +256,7 @@ SQL;
         ':decay_type' => $plan['decay_type'],
         ':decay_interval_minutes' => $plan['decay_interval_minutes'],
         ':decay_step_rate' => $plan['decay_step_rate'],
-        ':is_active' => $plan['is_active'] ? 1 : 0,
+        ':is_active' => $plan['is_active'],
         ':rules' => encode_jsonish($plan['rules']),
         ':notes' => $plan['notes'],
         ':updated_at' => $now,
@@ -232,7 +266,15 @@ SQL;
         $params[':created_at'] = $now;
     }
 
-    $stmt->execute($params);
+    try {
+        $stmt = db()->prepare($sql);
+
+        if (!$stmt->execute($params)) {
+            throw new RuntimeException('クーポンプランの保存に失敗しました。');
+        }
+    } catch (Throwable $e) {
+        throw new RuntimeException('DB保存エラー: ' . $e->getMessage(), 0, $e);
+    }
 
     return find_plan_by_id((string)$plan['id']) ?? $plan;
 }

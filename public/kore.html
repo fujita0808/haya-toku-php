@@ -15,6 +15,9 @@
       --accent-2: #ffb300;
       --ok: #0a7f45;
       --warn: #9a5b00;
+      --error: #b00020;
+      --disabled: #f3efe8;
+      --disabled-text: #9b9388;
     }
 
     * {
@@ -180,6 +183,14 @@
       font-size: 17px;
       font-weight: 900;
       cursor: pointer;
+      transition: opacity .2s ease;
+    }
+
+    button:disabled {
+      background: var(--disabled);
+      color: var(--disabled-text);
+      cursor: not-allowed;
+      border: 1px solid #ddd4c8;
     }
 
     .btn-primary {
@@ -210,6 +221,18 @@
     .used-box {
       background: #f5fbf7;
       border: 1px solid #bfdfc8;
+    }
+
+    .info-box {
+      background: #fffaf2;
+      border: 1px solid #ffd9ad;
+      color: #7a4b00;
+    }
+
+    .error-box {
+      background: #fff5f7;
+      border: 1px solid #f0c2cc;
+      color: var(--error);
     }
 
     .muted {
@@ -247,7 +270,7 @@
 <div class="wrap">
   <div class="card hero">
     <div class="hero-label">今この時点で発行すると</div>
-    <div id="heroRate" class="hero-rate">--%</div>
+    <div id="heroRate" class="hero-rate">--</div>
     <div id="heroNote" class="hero-note">この割引率でクーポンが確定します</div>
     <div id="couponName" class="coupon-name">クーポン名を読み込み中…</div>
   </div>
@@ -278,6 +301,9 @@
       </div>
     </div>
   </div>
+
+  <div id="currentStateBox" class="card status-box info-box hide"></div>
+  <div id="errorBox" class="card status-box error-box hide"></div>
 
   <div class="card">
     <h2 class="section-title">利用条件</h2>
@@ -322,10 +348,12 @@
     if (value === null || value === undefined || value === '') {
       return '--';
     }
+
     const num = Number(value);
     if (!Number.isFinite(num)) {
       return '--';
     }
+
     return `${num.toFixed(2).replace(/\.00$/, '')}%`;
   }
 
@@ -333,6 +361,7 @@
     if (!value) {
       return '--';
     }
+
     return String(value).replace('T', ' ');
   }
 
@@ -344,43 +373,83 @@
   }
 
   function show(el) {
-    el.classList.remove('hide');
+    if (el) {
+      el.classList.remove('hide');
+    }
   }
 
   function hide(el) {
-    el.classList.add('hide');
+    if (el) {
+      el.classList.add('hide');
+    }
+  }
+
+  function clearStatusBoxes() {
+    hide(document.getElementById('errorBox'));
+    hide(document.getElementById('currentStateBox'));
+  }
+
+  function showCurrentState(message) {
+    const box = document.getElementById('currentStateBox');
+    box.innerHTML = `<div>${escapeHtml(message)}</div>`;
+    show(box);
+  }
+
+  function showError(message) {
+    const box = document.getElementById('errorBox');
+    box.innerHTML = `<div>${escapeHtml(message)}</div>`;
+    show(box);
   }
 
   async function fetchJson(url, options = {}) {
     const response = await fetch(url, options);
     const data = await response.json().catch(() => ({}));
+
     if (!response.ok) {
-      throw new Error(data.error || data.message || `HTTP ${response.status}`);
+      const errorCode = data?.error?.code || `HTTP_${response.status}`;
+      const errorMessage =
+        data?.error?.message ||
+        data?.message ||
+        `HTTP ${response.status}`;
+
+      const error = new Error(errorMessage);
+      error.code = errorCode;
+      error.status = response.status;
+      error.payload = data;
+      throw error;
     }
+
     return data;
   }
 
   function renderCurrent(data) {
     state.current = data;
+    clearStatusBoxes();
 
     document.title = data?.app?.documentTitle || '早得クーポン | HAYA-TOKU（🍊ver / PHP PoC）';
 
-    const coupon = data.coupon || {};
-    const plan = data.plan || {};
-    const current = data.current || {};
-    const timeline = Array.isArray(data.timeline) ? data.timeline : [];
+    const coupon = data?.coupon || {};
+    const publicPeriod = data?.public_period || {};
+    const current = data?.current || {};
+    const timeline = Array.isArray(data?.timeline) ? data.timeline : [];
+    const isIssuable = Boolean(publicPeriod?.is_issuable);
 
     setText('title', coupon.title || '無題');
     setText('description', coupon.description || '');
     setText('couponName', coupon.product_name || coupon.title || '対象クーポン');
-    setText('heroRate', formatPercent(current.issue_discount_percent));
-    setText('heroNote', current.message || 'この割引率でクーポンが確定します');
+    setText('heroRate', formatPercent(current.discount_percent));
+    setText(
+      'heroNote',
+      current.message || (isIssuable
+        ? 'この割引率でクーポンが確定します'
+        : '現在はクーポンを発行できません')
+    );
     setText(
       'period',
-      `${formatDateTime(plan.start_at)} ～ ${formatDateTime(plan.end_at)}`
+      `${formatDateTime(publicPeriod.start_at)} ～ ${formatDateTime(publicPeriod.end_at)}`
     );
-    setText('initialRate', formatPercent(plan.initial_discount_percent));
-    setText('minRate', formatPercent(plan.min_discount_percent));
+    setText('initialRate', formatPercent(current.initial_discount_percent));
+    setText('minRate', formatPercent(current.min_discount_percent));
 
     const rulesEl = document.getElementById('rules');
     const rules = Array.isArray(coupon.rules) ? coupon.rules : [];
@@ -397,6 +466,21 @@
           </div>
         `).join('')
       : '<div class="muted">タイムラインはありません</div>';
+
+    const issueBtn = document.getElementById('issueBtn');
+    issueBtn.disabled = !isIssuable;
+    issueBtn.textContent = isIssuable
+      ? 'このクーポンを発行する'
+      : '現在は発行できません';
+
+    if (!coupon.is_active) {
+      showCurrentState('このクーポンプランは現在非公開です。');
+      return;
+    }
+
+    if (!isIssuable) {
+      showCurrentState('公開期間外のため、現在はクーポンを発行できません。');
+    }
   }
 
   function renderIssuedCoupon(coupon) {
@@ -430,19 +514,28 @@
 
     usedBox.innerHTML = `
       <div class="strong">使用済みクーポン</div>
-      <div>クーポンコード: <span class="strong">${escapeHtml(result.couponId || '')}</span></div>
+      <div>クーポンコード: <span class="strong">${escapeHtml(result.coupon_code || '')}</span></div>
       <div>使用日時: ${escapeHtml(result.used_at || '')}</div>
       <div>適用割引率: <span class="strong">${formatPercent(result.used_discount_percent)}</span></div>
       <div class="muted">使用時に再計算は行わず、発行時の確定割引率を適用しています。</div>
     `;
   }
 
+  function formatApiError(prefix, error) {
+    const code = error?.code ? ` [${error.code}]` : '';
+    const message = error?.message || '不明なエラーです。';
+    return `${prefix}${code}: ${message}`;
+  }
+
   async function loadCurrent() {
+    hide(document.getElementById('issuedBox'));
+    hide(document.getElementById('usedBox'));
+
     try {
       const data = await fetchJson('/api/coupon_current.php');
       renderCurrent(data);
     } catch (error) {
-      alert(`読み込みに失敗しました: ${error.message}`);
+      showError(formatApiError('読み込みに失敗しました', error));
     }
   }
 
@@ -451,27 +544,31 @@
       const data = await fetchJson('/api/coupon_issue.php', {
         method: 'POST',
       });
+
       state.issuedCoupon = data.coupon || null;
       if (!state.issuedCoupon) {
-        throw new Error('発行結果に coupon がありません');
+        throw new Error('発行結果に coupon がありません。');
       }
+
       renderIssuedCoupon(state.issuedCoupon);
     } catch (error) {
-      alert(`発行に失敗しました: ${error.message}`);
+      showError(formatApiError('発行に失敗しました', error));
     }
   }
 
   async function useIssuedCoupon() {
     if (!state.issuedCoupon?.coupon_code) {
-      alert('クーポン情報がありません');
+      showError('クーポン情報がありません。');
       return;
     }
 
     try {
-      const result = await fetchJson(`/api/coupon_use.php?couponId=${encodeURIComponent(state.issuedCoupon.coupon_code)}`);
+      const result = await fetchJson(
+        `/api/coupon_use.php?couponCode=${encodeURIComponent(state.issuedCoupon.coupon_code)}`
+      );
       renderUsedCoupon(result);
     } catch (error) {
-      alert(`使用に失敗しました: ${error.message}`);
+      showError(formatApiError('使用に失敗しました', error));
     }
   }
 

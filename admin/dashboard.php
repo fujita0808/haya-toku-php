@@ -9,7 +9,7 @@ $logs = [];
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ダッシュボード | HAYA-TOKU</title>
+  <title>ダッシュボード | HAYA-TOKU（🍊ver / PHP PoC）</title>
   <style>
     body{font-family:system-ui,sans-serif;background:#fff7ec;margin:0;color:#222}
     .wrap{max-width:1100px;margin:0 auto;padding:24px}
@@ -27,7 +27,7 @@ $logs = [];
 <div class="wrap">
   <div class="top">
     <div>
-      <h1 style="margin:0">HAYA-TOKU ダッシュボード</h1>
+      <h1 style="margin:0">HAYA-TOKU ダッシュボード（🍊ver / PHP PoC）</h1>
       <div class="muted">管理画面 / PostgreSQL移行対応中</div>
     </div>
     <div>

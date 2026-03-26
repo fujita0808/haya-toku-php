@@ -8,7 +8,10 @@ $plan = find_current_plan();
 if (!$plan) {
     json_response([
         'ok' => false,
-        'message' => '現在有効なクーポンはありません。',
+        'error' => [
+            'code' => 'NO_ACTIVE_PLAN',
+            'message' => '現在有効なクーポンはありません。',
+        ],
         'app' => [
             'documentTitle' => '早得クーポン | HAYA-TOKU（🍊ver / PHP PoC）',
             'displayName' => HAYA_TOKU_APP_NAME,
@@ -21,21 +24,36 @@ $startAt = (string)($plan['start_at'] ?? '');
 $endAt = (string)($plan['end_at'] ?? '');
 
 $timeline = generate_discount_timeline($plan);
-$currentRate = calculate_issue_discount_rate($plan, $now);
 $dailyDecayRate = calculate_daily_decay_rate($plan);
 
-$isIssuable = true;
-if ($startAt !== '' && $endAt !== '') {
-    $nowDt = new DateTimeImmutable($now, new DateTimeZone('Asia/Tokyo'));
-    $startDt = new DateTimeImmutable($startAt, new DateTimeZone('Asia/Tokyo'));
-    $endDt = new DateTimeImmutable($endAt, new DateTimeZone('Asia/Tokyo'));
+$isActive = (bool)($plan['is_active'] ?? false);
+$isIssuable = $isActive;
+
+if ($isIssuable && $startAt !== '' && $endAt !== '') {
+    $nowDt = new DateTimeImmutable($now);
+    $startDt = new DateTimeImmutable($startAt);
+    $endDt = new DateTimeImmutable($endAt);
     $isIssuable = !($nowDt < $startDt || $nowDt > $endDt);
 }
 
-$currentDate = (new DateTimeImmutable($now, new DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
+$currentDate = (new DateTimeImmutable($now))->format('Y-m-d');
 $elapsedDays = 0;
 if ($startAt !== '') {
     $elapsedDays = calculate_elapsed_days_from_plan_start($startAt, $now);
+}
+
+$currentRate = null;
+$currentPercent = null;
+$currentMessage = '';
+
+if ($isIssuable) {
+    $currentRate = calculate_issue_discount_rate($plan, $now);
+    $currentPercent = round($currentRate * 100, 2);
+    $currentMessage = 'この割引率でクーポンが確定します。';
+} elseif (!$isActive) {
+    $currentMessage = 'このクーポンプランは現在非公開です。';
+} else {
+    $currentMessage = '公開期間外のため、現在はクーポンを発行できません。';
 }
 
 json_response([
@@ -56,7 +74,7 @@ json_response([
         'product_name' => $plan['product_name'] ?? '',
         'rules' => is_array($plan['rules'] ?? null) ? $plan['rules'] : [],
         'notes' => $plan['notes'] ?? '',
-        'is_active' => (bool)($plan['is_active'] ?? false),
+        'is_active' => $isActive,
     ],
     'public_period' => [
         'start_at' => $startAt,
@@ -66,7 +84,8 @@ json_response([
     'current' => [
         'elapsed_days' => $elapsedDays,
         'discount_rate' => $currentRate,
-        'discount_percent' => round($currentRate * 100, 2),
+        'discount_percent' => $currentPercent,
+        'message' => $currentMessage,
         'initial_discount_rate' => normalize_discount_rate($plan['initial_discount_rate'] ?? 0),
         'initial_discount_percent' => round(normalize_discount_rate($plan['initial_discount_rate'] ?? 0) * 100, 2),
         'min_discount_rate' => normalize_discount_rate($plan['min_discount_rate'] ?? 0),

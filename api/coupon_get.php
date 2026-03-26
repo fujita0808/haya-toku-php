@@ -5,12 +5,15 @@ declare(strict_types=1);
 require_once __DIR__ . '/../lib/bootstrap.php';
 
 try {
-    $couponId = trim((string)($_GET['couponId'] ?? ''));
+    $couponCode = trim((string)($_GET['couponCode'] ?? $_GET['couponId'] ?? ''));
 
-    if ($couponId === '') {
+    if ($couponCode === '') {
         json_response([
             'ok' => false,
-            'error' => 'couponId is required',
+            'error' => [
+                'code' => 'BAD_REQUEST',
+                'message' => 'couponCode が必要です。',
+            ],
         ], 400);
     }
 
@@ -35,25 +38,35 @@ LIMIT 1
 SQL;
 
     $stmt = db()->prepare($sql);
-    $stmt->execute([
-        ':coupon_code' => $couponId,
+    $ok = $stmt->execute([
+        ':coupon_code' => $couponCode,
     ]);
+
+    if (!$ok) {
+        throw new RuntimeException('クーポン情報の取得に失敗しました。');
+    }
 
     $coupon = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$coupon) {
         json_response([
             'ok' => false,
-            'error' => 'Coupon not found',
-            'couponId' => $couponId,
+            'error' => [
+                'code' => 'COUPON_NOT_FOUND',
+                'message' => 'クーポンが見つかりません。',
+            ],
+            'coupon_code' => $couponCode,
         ], 404);
     }
 
     if (!(bool)$coupon['is_active']) {
         json_response([
             'ok' => false,
-            'error' => 'Coupon plan is inactive',
-            'couponId' => $couponId,
+            'error' => [
+                'code' => 'PLAN_INACTIVE',
+                'message' => 'クーポンプランが非公開です。',
+            ],
+            'coupon_code' => $couponCode,
         ], 403);
     }
 
@@ -66,7 +79,7 @@ SQL;
     if (!empty($coupon['used_at'])) {
         json_response([
             'ok' => true,
-            'couponId' => $couponId,
+            'coupon_code' => $couponCode,
             'coupon' => [
                 'id' => $coupon['id'],
                 'coupon_code' => $coupon['coupon_code'],
@@ -90,7 +103,7 @@ SQL;
 
     json_response([
         'ok' => true,
-        'couponId' => $couponId,
+        'coupon_code' => $couponCode,
         'coupon' => [
             'id' => $coupon['id'],
             'coupon_code' => $coupon['coupon_code'],
@@ -110,6 +123,9 @@ SQL;
 } catch (Throwable $e) {
     json_response([
         'ok' => false,
-        'error' => $e->getMessage(),
+        'error' => [
+            'code' => 'INTERNAL_ERROR',
+            'message' => $e->getMessage(),
+        ],
     ], 500);
 }

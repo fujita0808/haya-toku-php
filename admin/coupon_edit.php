@@ -13,7 +13,7 @@ if (!$plan) {
     $plan = [
         'id' => '',
         'title' => '今日の早得',
-        'description' => '公開期間に応じて日単位で割引率が減少し、クーポン発行時の割引率で固定されます。',
+        'description' => '公開期間に応じて割引率が下がる早得クーポンです。割引率は発行時に確定します。',
         'is_active' => false,
         'product_name' => '対象商品',
         'start_at' => date('Y-m-d 00:00:00'),
@@ -252,9 +252,8 @@ if (!empty($plan['rules']) && is_array($plan['rules'])) {
       <div class="full">
         <label>減衰ロジック</label>
         <div class="readonly-box">
-          公開期間をもとに日次減衰率を自動計算します。<br>
-          発行時の割引率 = 初期割引率 - （経過日数 × 日次減衰率）<br>
-          ただし、最低割引率を下回りません。
+          公開期間をもとに日次減衰率を自動計算します。
+          発行時点の日付から割引率を算出し、最低割引率を下回らないように補正します。
         </div>
       </div>
 

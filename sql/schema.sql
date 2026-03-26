@@ -1,41 +1,70 @@
--- HAYA-TOKU PoC: MySQL schema draft
+-- =========================================
+-- HAYA-TOKU schema.sql（0324仕様）
+-- 正: scripts/init_db.php
+-- PostgreSQL 前提
+-- =========================================
 
-CREATE TABLE admins (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  login_id VARCHAR(100) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS coupon_plans (
+    id VARCHAR(64) PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    product_name VARCHAR(255),
+    start_at TIMESTAMP NOT NULL,
+    end_at TIMESTAMP NOT NULL,
+    initial_discount_rate NUMERIC(5,4) NOT NULL,
+    min_discount_rate NUMERIC(5,4) NOT NULL,
+
+    -- 0324仕様では linear / daily_linear を想定
+    discount_mode VARCHAR(50),
+    decay_type VARCHAR(50),
+
+    -- 旧仕様互換カラム（未使用）
+    decay_interval_minutes INTEGER NULL,
+    decay_step_rate NUMERIC(8,4) NULL,
+
+    is_active BOOLEAN NOT NULL DEFAULT FALSE,
+    rules TEXT NULL,
+    notes TEXT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
 );
 
-CREATE TABLE coupon_plans (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
-  description TEXT NULL,
-  product_name VARCHAR(255) NULL,
-  unit_price INT NOT NULL DEFAULT 0,
-  cost_rate DECIMAL(6,4) NOT NULL DEFAULT 0.3500,
-  initial_discount_rate DECIMAL(6,4) NOT NULL,
-  min_discount_rate DECIMAL(6,4) NOT NULL,
-  decay_interval_minutes INT NOT NULL,
-  start_at DATETIME NOT NULL,
-  end_at DATETIME NOT NULL,
-  target_revenue INT NOT NULL DEFAULT 0,
-  status ENUM('draft', 'active', 'archived') NOT NULL DEFAULT 'draft',
-  rules_json JSON NULL,
-  notes TEXT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS coupons (
+    id BIGSERIAL PRIMARY KEY,
+    coupon_code VARCHAR(64) NOT NULL UNIQUE,
+    coupon_plan_id VARCHAR(64) NOT NULL REFERENCES coupon_plans(id) ON DELETE CASCADE,
+
+    -- 発行時点で確定した割引率（主役）
+    issued_at TIMESTAMP NOT NULL,
+    issued_discount_rate NUMERIC(5,4) NOT NULL,
+
+    -- 使用時の記録
+    used_at TIMESTAMP NULL,
+    used_discount_rate NUMERIC(5,4) NULL,
+
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
 );
 
-CREATE TABLE usage_logs (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  coupon_plan_id BIGINT UNSIGNED NOT NULL,
-  user_id VARCHAR(255) NOT NULL,
-  display_name VARCHAR(255) NULL,
-  discount_rate DECIMAL(6,4) NOT NULL,
-  discounted_price INT NOT NULL,
-  used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_coupon_plan_id (coupon_plan_id),
-  INDEX idx_user_id (user_id),
-  CONSTRAINT fk_usage_coupon_plans FOREIGN KEY (coupon_plan_id) REFERENCES coupon_plans(id)
+CREATE TABLE IF NOT EXISTS usage_logs (
+    id BIGSERIAL PRIMARY KEY,
+    coupon_id BIGINT NOT NULL REFERENCES coupons(id) ON DELETE CASCADE,
+    coupon_code VARCHAR(64),
+    event_type VARCHAR(50) NOT NULL,
+    event_at TIMESTAMP NOT NULL,
+    discount_rate NUMERIC(5,4) NULL,
+    meta_json TEXT NULL,
+    created_at TIMESTAMP NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_coupon_plans_is_active
+ON coupon_plans (is_active);
+
+CREATE INDEX IF NOT EXISTS idx_coupons_coupon_plan_id
+ON coupons (coupon_plan_id);
+
+CREATE INDEX IF NOT EXISTS idx_coupons_coupon_code
+ON coupons (coupon_code);
+
+CREATE INDEX IF NOT EXISTS idx_usage_logs_coupon_id
+ON usage_logs (coupon_id);
