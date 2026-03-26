@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 require_once __DIR__ . '/../lib/bootstrap.php';
@@ -11,10 +10,20 @@ if (request_method() !== 'POST') {
 }
 
 try {
+    // ★① boolean補正（ここで確定させる）
+    $_POST['is_active'] = isset($_POST['is_active']) && $_POST['is_active'] == '1';
+
     $plan = normalize_plan_from_post($_POST);
+
+    // ★② active一意制御
+    if (!empty($plan['is_active'])) {
+        db()->exec("UPDATE coupon_plans SET is_active = false");
+    }
+
     save_plan($plan);
 
     redirect_to('/admin/dashboard.php');
+
 } catch (Throwable $e) {
     http_response_code(400);
     ?>

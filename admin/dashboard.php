@@ -1,76 +1,111 @@
 <?php
-require_once __DIR__ . '/../lib/bootstrap.php';
-require_admin_login();
+declare(strict_types=1);
 
+/**
+ * HAYA-TOKU 管理画面（一覧）
+ * - プラン一覧表示
+ * - 新規作成ページへの導線
+ */
+
+// 依存読み込み（ここが重要）
+require_once __DIR__ . '/../lib/bootstrap.php';
+
+// 念のため：関数存在チェック（事故防止）
+if (!function_exists('find_all_plans')) {
+    die('find_all_plans() が未定義です。lib/coupon_model.php の読み込みを確認してください。');
+}
+
+// プラン一覧取得
 $plans = find_all_plans();
-$logs = [];
-?><!doctype html>
+?>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>ダッシュボード | HAYA-TOKU（🍊ver / PHP PoC）</title>
-  <style>
-    body{font-family:system-ui,sans-serif;background:#fff7ec;margin:0;color:#222}
-    .wrap{max-width:1100px;margin:0 auto;padding:24px}
-    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
-    .card{background:#fff;border-radius:20px;padding:20px;box-shadow:0 12px 30px rgba(0,0,0,.08);border:1px solid rgba(255,122,0,.14);margin-bottom:18px}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:10px;border-bottom:1px solid #eee;font-size:14px;vertical-align:top;text-align:left}
-    .btn{display:inline-block;padding:10px 14px;border-radius:12px;text-decoration:none;font-weight:800}
-    .primary{background:linear-gradient(180deg,#ff7a00,#ffb300);color:#fff}
-    .muted{color:#666;font-size:13px}
-    .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#f7f7f7;border:1px solid #eee;font-size:12px}
-  </style>
+    <meta charset="UTF-8">
+    <title>管理画面 | HAYA-TOKU</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            background: #fff;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 16px;
+            background: #ff6600;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #f5f5f5;
+        }
+        .active {
+            color: green;
+            font-weight: bold;
+        }
+        .inactive {
+            color: #999;
+        }
+    </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <div>
-      <h1 style="margin:0">HAYA-TOKU ダッシュボード（🍊ver / PHP PoC）</h1>
-      <div class="muted">管理画面 / PostgreSQL移行対応中</div>
-    </div>
-    <div>
-      <a class="btn primary" href="/admin/coupon_edit.php">新規クーポン作成</a>
-      <a class="btn" href="/admin/logout.php">ログアウト</a>
-    </div>
-  </div>
 
-  <div class="card">
-    <h2 style="margin-top:0">クーポンプラン一覧</h2>
-    <table>
-      <thead><tr><th>タイトル</th><th>商品</th><th>割引</th><th>状態</th><th></th></tr></thead>
-      <tbody>
-      <?php foreach ($plans as $plan): ?>
-        <tr>
-          <td><strong><?= h($plan['title']) ?></strong><br><span class="muted"><?= h($plan['description']) ?></span></td>
-          <td><?= h($plan['product_name']) ?></td>
-          <td><?= h((string)round(((float)$plan['initial_discount_rate']) * 100, 1)) ?>% → <?= h((string)round(((float)$plan['min_discount_rate']) * 100, 1)) ?>%</td>
-          <td><span class="pill"><?= !empty($plan['is_active']) ? '公開' : '下書き' ?></span></td>
-          <td><a href="/admin/coupon_edit.php?id=<?= urlencode($plan['id']) ?>">編集</a></td>
-        </tr>
-      <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
+<h1>クーポンプラン一覧</h1>
 
-  <div class="card">
-    <h2 style="margin-top:0">利用ログ（最新20件）</h2>
-    <table>
-      <thead><tr><th>日時</th><th>クーポン</th><th>ユーザー</th><th>割引率</th><th>割引後価格</th></tr></thead>
-      <tbody>
-      <?php foreach (array_reverse(array_slice($logs, -20)) as $log): ?>
+<a href="coupon_edit.php" class="btn">＋ 新規作成</a>
+
+<table>
+    <thead>
         <tr>
-          <td><?= h($log['used_at']) ?></td>
-          <td><?= h($log['coupon_plan_id']) ?></td>
-          <td><?= h($log['display_name']) ?><br><span class="muted"><?= h($log['user_id']) ?></span></td>
-          <td><?= h((string)round(((float)$log['discount_rate']) * 100, 1)) ?>%</td>
-          <td><?= h((string)$log['discounted_price']) ?>円</td>
+            <th>ID</th>
+            <th>商品名</th>
+            <th>初期割引率</th>
+            <th>最小割引率</th>
+            <th>状態</th>
+            <th>更新日時</th>
         </tr>
-      <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-</div>
+    </thead>
+    <tbody>
+        <?php if (empty($plans)): ?>
+            <tr>
+                <td colspan="6">データがありません</td>
+            </tr>
+        <?php else: ?>
+            <?php foreach ($plans as $plan): ?>
+                <tr>
+                    <td><?= htmlspecialchars($plan['id']) ?></td>
+                    <td><?= htmlspecialchars($plan['product_name']) ?></td>
+                    <td><?= round($plan['initial_discount_rate'] * 100) ?>%</td>
+                    <td><?= round($plan['min_discount_rate'] * 100) ?>%</td>
+                    <td>
+                        <?php if (!empty($plan['is_active'])): ?>
+                            <span class="active">有効</span>
+                        <?php else: ?>
+                            <span class="inactive">無効</span>
+                        <?php endif; ?>
+                    </td>
+                    <td><?= htmlspecialchars($plan['updated_at'] ?? '') ?></td>
+                </tr>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </tbody>
+</table>
+
 </body>
 </html>

@@ -12,15 +12,15 @@
       padding: 20px;
       background: #fff;
     }
+    #product {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
     #rate {
       font-size: 48px;
       font-weight: bold;
       color: #ff6600;
       margin: 20px 0;
-    }
-    #product {
-      font-size: 20px;
-      margin-bottom: 10px;
     }
     #btn {
       padding: 15px 25px;
@@ -90,12 +90,21 @@ async function loadCurrent() {
   const data = await res.json();
 
   if (!data.ok) {
-    alert(data.message || "エラー");
+    alert(data.error?.message || "エラー");
     return;
   }
 
-  document.getElementById("product").innerText = data.plan.product_name;
-  document.getElementById("rate").innerText = Math.round(data.rate * 100) + "%";
+  // ★ API準拠
+  document.getElementById("product").innerText =
+    data.coupon.product_name;
+
+  document.getElementById("rate").innerText =
+    data.current.discount_percent + "%";
+
+  // 発行不可ならボタン無効化
+  if (!data.public_period.is_issuable) {
+    document.getElementById("btn").disabled = true;
+  }
 }
 
 /* クーポン発行 */
@@ -106,7 +115,7 @@ async function issueCoupon() {
   const data = await res.json();
 
   if (!data.ok) {
-    alert(data.message || "発行エラー");
+    alert(data.error?.message || "発行エラー");
     return;
   }
 
@@ -119,7 +128,7 @@ async function issueCoupon() {
 async function useCoupon() {
   if (!currentCouponId) return;
 
-  await fetch(API_BASE + "/coupon_use.php", {
+  const res = await fetch(API_BASE + "/coupon_use.php", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -128,6 +137,12 @@ async function useCoupon() {
       coupon_id: currentCouponId
     })
   });
+
+  const data = await res.json();
+
+  if (!data.ok) {
+    alert(data.error?.message || "使用エラー");
+  }
 }
 
 /* モーダル */
