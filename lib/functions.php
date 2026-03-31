@@ -108,3 +108,16 @@ function get_display_target_plan_id(): ?string
 
     return trim($planId);
 }
+function save_display_target_plan_id(?string $planId): void
+{
+    $payload = [
+        'display_plan_id' => $planId !== null && trim($planId) !== '' ? trim($planId) : null,
+        'updated_at' => date('c'),
+    ];
+
+    file_put_contents(
+        display_target_storage_path(),
+        json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
+        LOCK_EX
+    );
+}

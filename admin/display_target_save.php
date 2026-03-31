@@ -10,36 +10,6 @@ if (request_method() !== 'POST') {
 }
 
 /**
- * 表示対象保存先
- * 今回は最小改修として storage/display_target.json を使う
- */
-function display_target_storage_path(): string
-{
-    if (!is_dir(HAYA_TOKU_STORAGE_DIR)) {
-        mkdir(HAYA_TOKU_STORAGE_DIR, 0777, true);
-    }
-
-    return HAYA_TOKU_STORAGE_DIR . '/display_target.json';
-}
-
-/**
- * 表示対象IDを保存
- */
-function save_display_target_plan_id(?string $planId): void
-{
-    $payload = [
-        'display_plan_id' => $planId !== null && trim($planId) !== '' ? trim($planId) : null,
-        'updated_at' => date('c'),
-    ];
-
-    file_put_contents(
-        display_target_storage_path(),
-        json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT),
-        LOCK_EX
-    );
-}
-
-/**
  * 現在表示可能なプランか判定
  * dashboard の考え方と揃える
  */
@@ -64,7 +34,6 @@ function can_display_now(array $plan, ?int $nowTs = null): bool
 try {
     $planId = trim((string)($_POST['display_plan_id'] ?? ''));
 
-    // 未選択保存を許可
     if ($planId === '') {
         save_display_target_plan_id(null);
         redirect_to('/admin/dashboard.php');
