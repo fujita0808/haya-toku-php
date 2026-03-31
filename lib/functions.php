@@ -74,3 +74,37 @@ function api_error(string $code, string $message, int $status = 400, array $deta
 
     json_response($payload, $status);
 }
+function display_target_storage_path(): string
+{
+    if (!is_dir(HAYA_TOKU_STORAGE_DIR)) {
+        mkdir(HAYA_TOKU_STORAGE_DIR, 0777, true);
+    }
+
+    return HAYA_TOKU_STORAGE_DIR . '/display_target.json';
+}
+
+function get_display_target_plan_id(): ?string
+{
+    $path = display_target_storage_path();
+
+    if (!file_exists($path)) {
+        return null;
+    }
+
+    $raw = file_get_contents($path);
+    if ($raw === false || trim($raw) === '') {
+        return null;
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return null;
+    }
+
+    $planId = $decoded['display_plan_id'] ?? null;
+    if (!is_string($planId) || trim($planId) === '') {
+        return null;
+    }
+
+    return trim($planId);
+}

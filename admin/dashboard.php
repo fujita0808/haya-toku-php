@@ -6,7 +6,8 @@ declare(strict_types=1);
  * - プラン一覧表示
  * - 新規作成ページへの導線
  * - 編集ページへの導線
- * - 状態表示（coupon_logic.php の共通判定を使用）
+ * - 現在状態表示（公開中 / 公開前 / 期限切れ / 無効）
+ * - フロント表示対象の選択（公開中のみ選択可）
  */
 
 require_once __DIR__ . '/../lib/bootstrap.php';
@@ -15,44 +16,136 @@ if (!function_exists('find_all_plans')) {
     die('find_all_plans() が未定義です。lib/db.php の読み込みを確認してください。');
 }
 
-if (!function_exists('build_plan_view_model')) {
-    die('build_plan_view_model() が未定義です。lib/coupon_logic.php の読み込みを確認してください。');
+$plans = find_all_plans();
+$nowTs = time();
+
+/**
+ * HTMLエスケープ
+ */
+function e(mixed $value): string
+{
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
-function format_datetime_value(mixed $value): string
+/**
+ * 日時文字列を timestamp に変換
+ */
+function to_timestamp_or_null(mixed $value): ?int
 {
     $text = trim((string)$value);
     if ($text === '') {
-        return '';
+        return null;
     }
 
     $ts = strtotime($text);
-    if ($ts === false) {
-        return $text;
+    return $ts === false ? null : $ts;
+}
+
+/**
+ * 現在状態コード
+ * - active   : 公開中
+ * - upcoming : 公開前
+ * - expired  : 期限切れ
+ * - inactive : 無効
+ * - invalid  : 設定不正
+ */
+function dashboard_status_code(array $plan, int $nowTs): string
+{
+    $isActive = !empty($plan['is_active']);
+    if (!$isActive) {
+        return 'inactive';
+    }
+
+    $startAt = to_timestamp_or_null($plan['start_at'] ?? '');
+    $endAt   = to_timestamp_or_null($plan['end_at'] ?? '');
+
+    if ($startAt === null || $endAt === null) {
+        return 'invalid';
+    }
+
+    if ($startAt > $endAt) {
+        return 'invalid';
+    }
+
+    if ($nowTs < $startAt) {
+        return 'upcoming';
+    }
+
+    if ($nowTs > $endAt) {
+        return 'expired';
+    }
+
+    return 'active';
+}
+
+/**
+ * 状態ラベル
+ */
+function dashboard_status_label(string $statusCode): string
+{
+    return match ($statusCode) {
+        'active'   => '公開中',
+        'upcoming' => '公開前',
+        'expired'  => '期限切れ',
+        'inactive' => '無効',
+        default    => '設定不正',
+    };
+}
+
+/**
+ * 状態バッジ用 class
+ */
+function dashboard_status_class(string $statusCode): string
+{
+    return match ($statusCode) {
+        'active'   => 'status-active',
+        'upcoming' => 'status-upcoming',
+        'expired'  => 'status-expired',
+        'inactive' => 'status-inactive',
+        default    => 'status-invalid',
+    };
+}
+
+/**
+ * 表示対象として選択可能か
+ * 今回は「公開中」のときだけ選択可
+ */
+function can_select_for_front(array $plan, int $nowTs): bool
+{
+    return dashboard_status_code($plan, $nowTs) === 'active';
+}
+
+/**
+ * 表示用日時
+ */
+function format_datetime_value(mixed $value): string
+{
+    $ts = to_timestamp_or_null($value);
+    if ($ts === null) {
+        return '';
     }
 
     return date('Y-m-d H:i', $ts);
 }
 
-function status_badge_class(string $statusCode): string
-{
-    return match ($statusCode) {
-        'active' => 'status-active',
-        'scheduled' => 'status-scheduled',
-        'ended' => 'status-ended',
-        'draft' => 'status-draft',
-        default => 'status-invalid',
-    };
+/**
+ * 現在選択中の表示対象ID
+ * - 将来 get_display_target_plan_id() を用意したら自動利用
+ * - なければ未選択扱い
+ */
+$selectedPlanId = null;
+if (function_exists('get_display_target_plan_id')) {
+    $selectedPlanId = get_display_target_plan_id();
+    if ($selectedPlanId !== null) {
+        $selectedPlanId = (string)$selectedPlanId;
+    }
 }
-
-$plans = find_all_plans();
-$nowTs = time();
 ?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>管理画面 | <?= h(HAYA_TOKU_APP_NAME) ?></title>
+    <title>管理画面 | HAYA-TOKU</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
@@ -68,6 +161,10 @@ $nowTs = time();
         }
 
         .toolbar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
             margin-bottom: 20px;
         }
 
@@ -80,6 +177,7 @@ $nowTs = time();
             border-radius: 6px;
             border: none;
             font-size: 14px;
+            cursor: pointer;
         }
 
         .btn:hover {
@@ -92,10 +190,34 @@ $nowTs = time();
             font-size: 13px;
         }
 
+        .btn-sub {
+            background: #666;
+        }
+
         .now-info {
             margin-bottom: 12px;
             color: #666;
             font-size: 13px;
+        }
+
+        .hint {
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .selection-box {
+            margin-bottom: 16px;
+            padding: 12px;
+            background: #f9f9f9;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+        }
+
+        .selection-box .title {
+            font-weight: bold;
+            margin-bottom: 6px;
         }
 
         table {
@@ -129,24 +251,43 @@ $nowTs = time();
             background: #e8f7ed;
         }
 
-        .status-scheduled {
+        .status-upcoming {
             color: #1f5fbf;
             background: #eaf2ff;
         }
 
-        .status-ended {
+        .status-expired {
             color: #c62828;
             background: #fdecec;
         }
 
-        .status-draft {
+        .status-inactive {
             color: #666;
             background: #f0f0f0;
         }
 
         .status-invalid {
-            color: #8a2be2;
-            background: #f4ecff;
+            color: #7a3db8;
+            background: #f3ebff;
+        }
+
+        .select-cell {
+            text-align: center;
+            width: 92px;
+        }
+
+        .row-disabled {
+            background: #fafafa;
+            color: #888;
+        }
+
+        .row-disabled input[type="radio"] {
+            cursor: not-allowed;
+        }
+
+        .disabled-note {
+            font-size: 12px;
+            color: #888;
         }
 
         .col-actions {
@@ -163,62 +304,116 @@ $nowTs = time();
 
 <h1>クーポンプラン一覧</h1>
 
-<div class="toolbar">
-    <a href="coupon_edit.php" class="btn">＋ 新規作成</a>
-</div>
+<form method="post" action="display_target_save.php" id="display-target-form">
+    <div class="toolbar">
+        <a href="coupon_edit.php" class="btn">＋ 新規作成</a>
+        <button type="submit" class="btn">表示対象を保存</button>
+        <button type="button" class="btn btn-sub" id="clear-selection-btn">選択解除</button>
+    </div>
 
-<div class="now-info">
-    判定時刻: <?= h(date('Y-m-d H:i:s', $nowTs)) ?>
-</div>
+    <div class="selection-box">
+        <div class="title">フロント表示対象の選択</div>
+        <div class="hint">
+            公開中のプランだけ選択できます。公開前・期限切れ・無効は選択できません。<br>
+            「選択解除」を押すと未選択のまま保存できます。
+        </div>
+        <input type="hidden" name="display_plan_id" id="display_plan_id" value="<?= e($selectedPlanId ?? '') ?>">
+    </div>
 
-<table>
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>商品名</th>
-            <th>初期割引率</th>
-            <th>最小割引率</th>
-            <th>開始日時</th>
-            <th>終了日時</th>
-            <th>状態</th>
-            <th>更新日時</th>
-            <th class="col-actions">操作</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php if (empty($plans)): ?>
+    <div class="now-info">
+        判定時刻: <?= e(date('Y-m-d H:i:s', $nowTs)) ?>
+    </div>
+
+    <table>
+        <thead>
             <tr>
-                <td colspan="9" class="empty">データがありません</td>
+                <th class="select-cell">表示</th>
+                <th>ID</th>
+                <th>商品名</th>
+                <th>初期割引率</th>
+                <th>最小割引率</th>
+                <th>開始日時</th>
+                <th>終了日時</th>
+                <th>状態</th>
+                <th>更新日時</th>
+                <th class="col-actions">操作</th>
             </tr>
-        <?php else: ?>
-            <?php foreach ($plans as $plan): ?>
-                <?php
-                $view = build_plan_view_model($plan, $nowTs);
-                $planId = (string)($view['id'] ?? '');
-                $statusCode = (string)($view['status_code'] ?? 'invalid');
-                $statusLabel = (string)($view['status_label'] ?? '設定不正');
-                ?>
+        </thead>
+        <tbody>
+            <?php if (empty($plans)): ?>
                 <tr>
-                    <td><?= h($planId) ?></td>
-                    <td><?= h((string)($view['product_name'] ?? '')) ?></td>
-                    <td><?= round((float)($view['initial_discount_rate'] ?? 0) * 100) ?>%</td>
-                    <td><?= round((float)($view['min_discount_rate'] ?? 0) * 100) ?>%</td>
-                    <td><?= h(format_datetime_value($view['start_at'] ?? '')) ?></td>
-                    <td><?= h(format_datetime_value($view['end_at'] ?? '')) ?></td>
-                    <td>
-                        <span class="status-badge <?= h(status_badge_class($statusCode)) ?>">
-                            <?= h($statusLabel) ?>
-                        </span>
-                    </td>
-                    <td><?= h(format_datetime_value($plan['updated_at'] ?? '')) ?></td>
-                    <td class="col-actions">
-                        <a href="coupon_edit.php?id=<?= urlencode($planId) ?>" class="btn btn-edit">編集</a>
-                    </td>
+                    <td colspan="10" class="empty">データがありません</td>
                 </tr>
-            <?php endforeach; ?>
-        <?php endif; ?>
-    </tbody>
-</table>
+            <?php else: ?>
+                <?php foreach ($plans as $plan): ?>
+                    <?php
+                    $planId = (string)($plan['id'] ?? '');
+                    $statusCode = dashboard_status_code($plan, $nowTs);
+                    $statusLabel = dashboard_status_label($statusCode);
+                    $statusClass = dashboard_status_class($statusCode);
+                    $selectable = can_select_for_front($plan, $nowTs);
+                    $checked = ($selectedPlanId !== null && $selectedPlanId === $planId);
+                    ?>
+                    <tr class="<?= $selectable ? '' : 'row-disabled' ?>">
+                        <td class="select-cell">
+                            <input
+                                type="radio"
+                                name="display_plan_id_radio"
+                                value="<?= e($planId) ?>"
+                                <?= $checked ? 'checked' : '' ?>
+                                <?= $selectable ? '' : 'disabled' ?>
+                            >
+                            <?php if (!$selectable): ?>
+                                <div class="disabled-note">選択不可</div>
+                            <?php endif; ?>
+                        </td>
+                        <td><?= e($planId) ?></td>
+                        <td><?= e((string)($plan['product_name'] ?? '')) ?></td>
+                        <td><?= isset($plan['initial_discount_rate']) ? round((float)$plan['initial_discount_rate'] * 100) . '%' : '' ?></td>
+                        <td><?= isset($plan['min_discount_rate']) ? round((float)$plan['min_discount_rate'] * 100) . '%' : '' ?></td>
+                        <td><?= e(format_datetime_value($plan['start_at'] ?? '')) ?></td>
+                        <td><?= e(format_datetime_value($plan['end_at'] ?? '')) ?></td>
+                        <td>
+                            <span class="status-badge <?= e($statusClass) ?>">
+                                <?= e($statusLabel) ?>
+                            </span>
+                        </td>
+                        <td><?= e(format_datetime_value($plan['updated_at'] ?? '')) ?></td>
+                        <td class="col-actions">
+                            <a href="coupon_edit.php?id=<?= urlencode($planId) ?>" class="btn btn-edit">編集</a>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+    </table>
+</form>
+
+<script>
+(() => {
+    const hiddenInput = document.getElementById('display_plan_id');
+    const radios = document.querySelectorAll('input[name="display_plan_id_radio"]');
+    const clearBtn = document.getElementById('clear-selection-btn');
+
+    function syncHiddenFromChecked() {
+        const checked = document.querySelector('input[name="display_plan_id_radio"]:checked');
+        hiddenInput.value = checked ? checked.value : '';
+    }
+
+    radios.forEach((radio) => {
+        radio.addEventListener('change', syncHiddenFromChecked);
+    });
+
+    clearBtn.addEventListener('click', () => {
+        radios.forEach((radio) => {
+            radio.checked = false;
+        });
+        hiddenInput.value = '';
+    });
+
+    syncHiddenFromChecked();
+})();
+</script>
 
 </body>
 </html>
