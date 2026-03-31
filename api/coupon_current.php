@@ -4,78 +4,62 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../lib/bootstrap.php';
 
-$plan = find_current_plan();
-
-if (!$plan) {
-    json_response([
-        'ok' => false,
-        'error' => [
-            'code' => 'NO_ACTIVE_PLAN',
-            'message' => '現在有効なクーポンプランがありません。',
-        ],
-        'app' => [
-            'documentTitle' => '早得クーポン | HAYA-TOKU（🍊ver / PHP PoC）',
-            'displayName' => HAYA_TOKU_APP_NAME,
-        ],
-    ], 404);
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    if (function_exists('send_api_headers')) {
+        send_api_headers();
+    }
+    http_response_code(200);
+    exit;
 }
 
-$now = now_tokyo();
-$current = get_current_plan_discount_payload($plan, $now);
-$timelineRows = build_plan_discount_timeline($plan);
+if (function_exists('send_api_headers')) {
+    send_api_headers();
+}
 
-$timeline = array_map(
-    static function (array $row, array $plan): array {
-        $startAt = (string)($plan['start_at'] ?? '');
-        $date = $startAt !== ''
-            ? date('Y-m-d', strtotime($startAt . ' +' . (int)$row['day'] . ' days'))
-            : null;
+$plan = find_current_plan();
 
-        return [
-            'day' => $row['day'],
-            'date' => $date,
-            'label' => $date !== null ? $date . '（' . ((int)$row['day'] + 1) . '日目）' : ((int)$row['day'] + 1) . '日目',
-            'discount_rate' => $row['discount_rate'],
-            'discount_percent' => $row['discount_percent'],
-        ];
-    },
-    $timelineRows,
-    array_fill(0, count($timelineRows), $plan)
-);
+if ($plan === null) {
+    api_error('PLAN_NOT_FOUND', '現在公開中の早得クーポンがありません。', 404, [
+        'app' => [
+            'documentTitle' => '早得クーポン | ' . HAYA_TOKU_APP_NAME,
+            'displayName' => HAYA_TOKU_APP_NAME,
+        ],
+    ]);
+}
 
-json_response([
-    'ok' => true,
+$viewModel = build_plan_view_model($plan);
+$schedule = $viewModel['schedule'] ?? [];
+
+api_success([
     'app' => [
-        'documentTitle' => '早得クーポン | HAYA-TOKU（🍊ver / PHP PoC）',
+        'documentTitle' => '早得クーポン | ' . HAYA_TOKU_APP_NAME,
         'displayName' => HAYA_TOKU_APP_NAME,
     ],
-    'runtime' => [
-        'now' => $now,
-        'timezone' => 'Asia/Tokyo',
+    'plan' => [
+        'id' => (string)$viewModel['id'],
+        'title' => (string)$viewModel['title'],
+        'description' => (string)$viewModel['description'],
+        'product_name' => (string)$viewModel['product_name'],
+        'status_code' => (string)$viewModel['status_code'],
+        'status_label' => (string)$viewModel['status_label'],
+        'is_active' => (bool)$viewModel['is_active'],
+        'start_at' => (string)$viewModel['start_at'],
+        'end_at' => (string)$viewModel['end_at'],
+        'initial_discount_rate' => (float)$viewModel['initial_discount_rate'],
+        'min_discount_rate' => (float)$viewModel['min_discount_rate'],
+        'rules' => is_array($viewModel['rules']) ? $viewModel['rules'] : [],
+        'notes' => (string)$viewModel['notes'],
     ],
-    'coupon' => [
-        'plan_id' => $plan['id'] ?? null,
-        'title' => $plan['title'] ?? '',
-        'description' => $plan['description'] ?? '',
-        'product_name' => $plan['product_name'] ?? '',
-        'rules' => is_array($plan['rules'] ?? null) ? $plan['rules'] : [],
-        'notes' => $plan['notes'] ?? '',
-        'is_active' => (bool)($plan['is_active'] ?? false),
+    'schedule' => [
+        'status' => (string)($schedule['status'] ?? ''),
+        'is_active_now' => (bool)($schedule['is_active_now'] ?? false),
+        'current_discount_rate' => (float)($schedule['current_discount_rate'] ?? 0),
+        'initial_discount_rate' => (float)($schedule['initial_discount_rate'] ?? 0),
+        'min_discount_rate' => (float)($schedule['min_discount_rate'] ?? 0),
+        'total_days' => (int)($schedule['total_days'] ?? 0),
+        'elapsed_days' => (int)($schedule['elapsed_days'] ?? 0),
+        'remaining_days' => (int)($schedule['remaining_days'] ?? 0),
+        'progress_ratio' => (float)($schedule['progress_ratio'] ?? 0),
+        'next_change_at' => $schedule['next_change_at'] ?? null,
     ],
-    'public_period' => [
-        'start_at' => $plan['start_at'] ?? null,
-        'end_at' => $plan['end_at'] ?? null,
-        'is_issuable' => $current['is_issuable'],
-    ],
-    'current' => [
-        'elapsed_days' => $current['elapsed_days'],
-        'discount_rate' => $current['discount_rate'],
-        'discount_percent' => $current['discount_percent'],
-        'message' => $current['message'],
-        'initial_discount_rate' => normalize_discount_rate((float)($plan['initial_discount_rate'] ?? 0)),
-        'initial_discount_percent' => round(normalize_discount_rate((float)($plan['initial_discount_rate'] ?? 0)) * 100, 2),
-        'min_discount_rate' => normalize_discount_rate((float)($plan['min_discount_rate'] ?? 0)),
-        'min_discount_percent' => round(normalize_discount_rate((float)($plan['min_discount_rate'] ?? 0)) * 100, 2),
-    ],
-    'timeline' => $timeline,
-]);
+], 200);

@@ -1,3 +1,3 @@
 <?php
-header('Location: /public/kore.html');
+header('Location: /public/index.html');
 exit;

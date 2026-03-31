@@ -13,7 +13,7 @@ if (!$plan) {
     $plan = [
         'id' => '',
         'title' => '今日の早得',
-        'description' => '公開期間に応じて割引率が下がる早得クーポンです。割引率は発行時に確定します。',
+        'description' => '公開期間に応じて割引率が変動する早得クーポンです。未使用中も割引率は変動し、利用時点の割引率が最終的に確定します。',
         'is_active' => false,
         'product_name' => '対象商品',
         'start_at' => date('Y-m-d 00:00:00'),
@@ -54,7 +54,7 @@ if (!empty($plan['rules']) && is_array($plan['rules'])) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>クーポン編集 | HAYA-TOKU</title>
+  <title>早得ルール編集 | 早得（HAYA-TOKU）</title>
   <style>
     body {
       font-family: system-ui, sans-serif;
@@ -171,17 +171,18 @@ if (!empty($plan['rules']) && is_array($plan['rules'])) {
 <div class="wrap">
   <div class="head">
     <div>
-      <h1 style="margin:0">クーポンプラン編集</h1>
-      <div class="help">0324仕様：公開期間依存・日単位線形減衰・発行時固定</div>
+      <h1 style="margin:0">早得ルール編集</h1>
+      <div class="help">早得仕様：公開期間依存・日次変動・未使用中は流動・利用時点で割引率確定</div>
     </div>
     <a class="btn ghost" href="/admin/dashboard.php">ダッシュボードへ戻る</a>
   </div>
 
   <div class="note">
     <strong>この画面の仕様</strong><br>
-    ・割引率は公開期間に応じて日単位で減少します。<br>
-    ・クーポンの割引率は発行時に確定し、その後は変化しません。<br>
-    ・時間単位減衰、減衰間隔（分）、使用時再計算は採用しません。
+    ・この画面では、固定割引クーポンではなく、公開期間に応じて割引率が変動する「早得ルール」を設定します。<br>
+    ・割引率は発行時に固定されません。未使用の間も、公開期間に応じて日次で変動します。<br>
+    ・実際に利用したその瞬間の割引率が最終値として確定します。<br>
+    ・時間単位減衰、分単位間隔設定、発行時固定は採用しません。
   </div>
 
   <form class="card" method="post" action="/admin/coupon_save.php">
@@ -204,6 +205,7 @@ if (!empty($plan['rules']) && is_array($plan['rules'])) {
       <div class="full">
         <label for="description">説明文</label>
         <textarea id="description" name="description"><?= h((string)$plan['description']) ?></textarea>
+        <div class="help">ユーザー向けの説明文です。早得クーポンの内容や使い方を記載します。</div>
       </div>
 
       <div>
@@ -214,11 +216,13 @@ if (!empty($plan['rules']) && is_array($plan['rules'])) {
       <div>
         <label for="start_at">公開開始日時</label>
         <input id="start_at" type="datetime-local" name="start_at" value="<?= h($startAtValue) ?>" required>
+        <div class="help">この時点が最も高い割引率の開始基準です。</div>
       </div>
 
       <div>
         <label for="end_at">公開終了日時</label>
         <input id="end_at" type="datetime-local" name="end_at" value="<?= h($endAtValue) ?>" required>
+        <div class="help">この時点が最低割引率の到達基準です。</div>
       </div>
 
       <div>
@@ -233,6 +237,7 @@ if (!empty($plan['rules']) && is_array($plan['rules'])) {
           value="<?= h((string)$initialRate) ?>"
           required
         >
+        <div class="help">公開開始時点の割引率です（最も高い割引率）。</div>
       </div>
 
       <div>
@@ -247,13 +252,15 @@ if (!empty($plan['rules']) && is_array($plan['rules'])) {
           value="<?= h((string)$minRate) ?>"
           required
         >
+        <div class="help">公開終了時点の割引率です（最も低い割引率）。</div>
       </div>
 
       <div class="full">
-        <label>減衰ロジック</label>
+        <label>早得変動ロジック</label>
         <div class="readonly-box">
-          公開期間をもとに日次減衰率を自動計算します。
-          発行時点の日付から割引率を算出し、最低割引率を下回らないように補正します。
+          公開開始日時から公開終了日時までの期間をもとに、日次で割引率を変動させます。<br>
+          クーポンが未使用の間は割引率は固定されず、利用時点の割引率が最終値として確定します。<br>
+          現在割引率、残日数、次回変化タイミングは実行ロジック側で自動計算します。
         </div>
       </div>
 
@@ -265,12 +272,13 @@ if (!empty($plan['rules']) && is_array($plan['rules'])) {
       <div class="full">
         <label for="notes">備考</label>
         <textarea id="notes" name="notes"><?= h((string)($plan['notes'] ?? '')) ?></textarea>
+        <div class="help">管理用メモです。将来の見直しや引き継ぎに使います。</div>
       </div>
     </div>
 
     <div class="actions">
       <button class="primary" type="submit">保存する</button>
-      <a class="btn ghost" href="/public/kore.html" target="_blank" rel="noopener noreferrer">フロントを開く</a>
+      <a class="btn ghost" href="/public/index.html" target="_blank" rel="noopener noreferrer">フロントを開く</a>
     </div>
   </form>
 </div>

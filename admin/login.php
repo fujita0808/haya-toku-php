@@ -19,7 +19,7 @@ if (request_method() === 'POST') {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>管理画面ログイン | HAYA-TOKU</title>
+  <title>管理画面ログイン | 早得（HAYA-TOKU）</title>
   <style>
     body{font-family:system-ui,sans-serif;background:#fff7ec;margin:0;color:#222}
     .wrap{max-width:420px;margin:8vh auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 18px 40px rgba(0,0,0,.08);border:1px solid rgba(255,122,0,.15)}
@@ -33,7 +33,7 @@ if (request_method() === 'POST') {
 </head>
 <body>
   <div class="wrap">
-    <h1>HAYA-TOKU 管理画面</h1>
+    <h1>早得（HAYA-TOKU） 管理画面</h1>
     <div class="sub">PoC 用の簡易ログインです。</div>
     <?php if ($error !== ''): ?><div class="err"><?= h($error) ?></div><?php endif; ?>
     <form method="post">

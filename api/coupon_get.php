@@ -4,127 +4,101 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../lib/bootstrap.php';
 
-try {
-    $couponCode = trim((string)($_GET['couponCode'] ?? $_GET['couponId'] ?? ''));
-
-    if ($couponCode === '') {
-        json_response([
-            'ok' => false,
-            'error' => [
-                'code' => 'BAD_REQUEST',
-                'message' => 'couponCode が必要です。',
-            ],
-        ], 400);
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    if (function_exists('send_api_headers')) {
+        send_api_headers();
     }
-
-    $sql = <<<SQL
-SELECT
-    c.id,
-    c.coupon_code,
-    c.coupon_plan_id,
-    c.issued_at,
-    c.used_at,
-    c.used_discount_rate,
-    c.created_at,
-    c.updated_at,
-    p.*
-FROM coupons c
-INNER JOIN coupon_plans p
-    ON c.coupon_plan_id = p.id
-WHERE c.coupon_code = :coupon_code
-LIMIT 1
-SQL;
-
-    $stmt = db()->prepare($sql);
-    $ok = $stmt->execute([
-        ':coupon_code' => $couponCode,
-    ]);
-
-    if (!$ok) {
-        throw new RuntimeException('クーポン情報の取得に失敗しました。');
-    }
-
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$row) {
-        json_response([
-            'ok' => false,
-            'error' => [
-                'code' => 'COUPON_NOT_FOUND',
-                'message' => 'クーポンが見つかりません。',
-            ],
-            'coupon_code' => $couponCode,
-        ], 404);
-    }
-
-    $plan = decode_plan_row($row);
-
-    if (!(bool)($plan['is_active'] ?? false)) {
-        json_response([
-            'ok' => false,
-            'error' => [
-                'code' => 'PLAN_INACTIVE',
-                'message' => 'クーポンプランが非公開です。',
-            ],
-            'coupon_code' => $couponCode,
-        ], 403);
-    }
-
-    $now = now_tokyo();
-    $current = get_current_plan_discount_payload($plan, $now);
-
-    $baseCoupon = [
-        'id' => $row['id'],
-        'coupon_code' => $row['coupon_code'],
-        'coupon_plan_id' => $row['coupon_plan_id'],
-        'title' => $plan['title'] ?? '',
-        'description' => $plan['description'] ?? '',
-        'issued_at' => $row['issued_at'],
-        'issued_date' => !empty($row['issued_at']) ? date('Y-m-d', strtotime((string)$row['issued_at'])) : null,
-    ];
-
-    if (!empty($row['used_at'])) {
-        $usedRate = isset($row['used_discount_rate']) ? (float)$row['used_discount_rate'] : null;
-
-        json_response([
-            'ok' => true,
-            'coupon_code' => $couponCode,
-            'coupon' => $baseCoupon + [
-                'used_at' => $row['used_at'],
-                'used_discount_rate' => $usedRate,
-                'used_discount_percent' => $usedRate !== null ? round($usedRate * 100, 2) : null,
-                'discount_rate' => $usedRate,
-                'discount_percent' => $usedRate !== null ? round($usedRate * 100, 2) : null,
-                'status' => 'used',
-                'message' => 'このクーポンは使用済みです。',
-            ],
-        ]);
-    }
-
-    json_response([
-        'ok' => true,
-        'coupon_code' => $couponCode,
-        'coupon' => $baseCoupon + [
-            'used_at' => null,
-            'current_discount_rate' => $current['discount_rate'],
-            'current_discount_percent' => $current['discount_percent'],
-            'discount_rate' => $current['discount_rate'],
-            'discount_percent' => $current['discount_percent'],
-            'status' => 'available',
-            'message' => '現在の割引率です。未使用クーポンは日ごとに割引率が変動します。',
-        ],
-        'public_period' => [
-            'start_at' => $plan['start_at'] ?? null,
-            'end_at' => $plan['end_at'] ?? null,
-            'is_issuable' => $current['is_issuable'],
-        ],
-    ]);
-} catch (Throwable $e) {
-    json_response([
-        'ok' => false,
-        'error' => [
-            'code' => 'INTERNAL_ERROR',
-            'message' => $e->getMessage(),
-        ],
-    ], 500);
+    http_response_code(200);
+    exit;
 }
+
+if (function_exists('send_api_headers')) {
+    send_api_headers();
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    api_error('METHOD_NOT_ALLOWED', 'GET メソッドでアクセスしてください。', 405);
+}
+
+$couponId = trim((string)($_GET['coupon_id'] ?? ''));
+$couponCode = trim((string)($_GET['coupon_code'] ?? ''));
+
+if ($couponId === '' && $couponCode === '') {
+    api_error('COUPON_IDENTIFIER_REQUIRED', 'coupon_id または coupon_code が必要です。', 400);
+}
+
+$coupon = null;
+
+if ($couponId !== '') {
+    $coupon = find_coupon_by_id($couponId);
+} elseif ($couponCode !== '') {
+    $coupon = find_coupon_by_code($couponCode);
+}
+
+if (!is_array($coupon)) {
+    api_error('COUPON_NOT_FOUND', '対象クーポンが見つかりません。', 404);
+}
+
+$planId = trim((string)($coupon['coupon_plan_id'] ?? $coupon['plan_id'] ?? ''));
+$plan = $planId !== '' ? find_plan_by_id($planId) : null;
+
+if ($plan === null) {
+    api_error('PLAN_NOT_FOUND', '対応するクーポンプランが見つかりません。', 404, [
+        'coupon' => [
+            'id' => (string)($coupon['id'] ?? ''),
+            'coupon_code' => (string)($coupon['coupon_code'] ?? ''),
+            'coupon_plan_id' => $planId,
+        ],
+    ]);
+}
+
+$viewModel = build_plan_view_model($plan);
+$schedule = $viewModel['schedule'] ?? [];
+
+$denyReason = coupon_use_denied_reason($coupon, $plan);
+$isUsable = ($denyReason === 'ok');
+
+api_success([
+    'coupon' => [
+        'id' => (string)($coupon['id'] ?? ''),
+        'coupon_code' => (string)($coupon['coupon_code'] ?? ''),
+        'coupon_plan_id' => $planId,
+        'issued_at' => (string)($coupon['issued_at'] ?? ''),
+        'used_at' => (string)($coupon['used_at'] ?? ''),
+        'issued_discount_rate' => (float)($coupon['issued_discount_rate'] ?? 0),
+        'used_discount_rate' => (float)($coupon['used_discount_rate'] ?? 0),
+        'is_used' => coupon_is_used($coupon),
+    ],
+    'plan' => [
+        'id' => (string)$viewModel['id'],
+        'title' => (string)$viewModel['title'],
+        'description' => (string)$viewModel['description'],
+        'product_name' => (string)$viewModel['product_name'],
+        'status_code' => (string)$viewModel['status_code'],
+        'status_label' => (string)$viewModel['status_label'],
+        'is_active' => (bool)$viewModel['is_active'],
+        'start_at' => (string)$viewModel['start_at'],
+        'end_at' => (string)$viewModel['end_at'],
+        'initial_discount_rate' => (float)$viewModel['initial_discount_rate'],
+        'min_discount_rate' => (float)$viewModel['min_discount_rate'],
+        'rules' => is_array($viewModel['rules']) ? $viewModel['rules'] : [],
+        'notes' => (string)$viewModel['notes'],
+    ],
+    'schedule' => [
+        'status' => (string)($schedule['status'] ?? ''),
+        'is_active_now' => (bool)($schedule['is_active_now'] ?? false),
+        'current_discount_rate' => (float)($schedule['current_discount_rate'] ?? 0),
+        'initial_discount_rate' => (float)($schedule['initial_discount_rate'] ?? 0),
+        'min_discount_rate' => (float)($schedule['min_discount_rate'] ?? 0),
+        'total_days' => (int)($schedule['total_days'] ?? 0),
+        'elapsed_days' => (int)($schedule['elapsed_days'] ?? 0),
+        'remaining_days' => (int)($schedule['remaining_days'] ?? 0),
+        'progress_ratio' => (float)($schedule['progress_ratio'] ?? 0),
+        'next_change_at' => $schedule['next_change_at'] ?? null,
+    ],
+    'availability' => [
+        'is_usable' => $isUsable,
+        'reason_code' => $denyReason,
+        'reason_message' => coupon_use_denied_message($denyReason),
+    ],
+], 200);

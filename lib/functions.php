@@ -51,3 +51,26 @@ function to_datetime_local(string $value): string
     $ts = strtotime($value);
     return $ts ? date('Y-m-d\TH:i', $ts) : '';
 }
+function api_success(array $data = [], int $status = 200): never
+{
+    json_response([
+        'ok' => true,
+        'data' => $data,
+    ], $status);
+}
+function api_error(string $code, string $message, int $status = 400, array $details = []): never
+{
+    $payload = [
+        'ok' => false,
+        'error' => [
+            'code' => $code,
+            'message' => $message,
+        ],
+    ];
+
+    if ($details !== []) {
+        $payload = array_merge($payload, $details);
+    }
+
+    json_response($payload, $status);
+}

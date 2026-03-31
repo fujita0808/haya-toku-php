@@ -32,7 +32,7 @@ try {
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
-      <title>保存エラー | HAYA-TOKU（🍊ver / PHP PoC）</title>
+      <title>保存エラー | 早得（HAYA-TOKU）（🍊ver / PHP PoC）</title>
       <style>
         body {
           font-family: system-ui, sans-serif;

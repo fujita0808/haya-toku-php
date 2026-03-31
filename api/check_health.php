@@ -1,32 +1,38 @@
 <?php
+
 declare(strict_types=1);
 
-header('Content-Type: application/json; charset=utf-8');
+require_once __DIR__ . '/../lib/bootstrap.php';
 
-require_once __DIR__ . '/../lib/api_headers.php';
-require_once __DIR__ . '/../lib/db.php';
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    if (function_exists('send_api_headers')) {
+        send_api_headers();
+    }
+    http_response_code(200);
+    exit;
+}
+
+if (function_exists('send_api_headers')) {
+    send_api_headers();
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    api_error('METHOD_NOT_ALLOWED', 'GET メソッドでアクセスしてください。', 405);
+}
 
 try {
-
     $pdo = db();
-
     $stmt = $pdo->query('SELECT NOW() as now');
-
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    echo json_encode([
-        'ok' => true,
+    api_success([
         'message' => 'health check ok',
-        'db_time' => $row['now'] ?? null
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
+        'db_time' => $row['now'] ?? null,
+    ], 200);
 } catch (Throwable $e) {
-
-    http_response_code(500);
-
-    echo json_encode([
-        'ok' => false,
-        'error' => $e->getMessage()
-    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
+    api_error('HEALTH_CHECK_FAILED', 'ヘルスチェックに失敗しました。', 500, [
+        'debug' => [
+            'message' => $e->getMessage(),
+        ],
+    ]);
 }
