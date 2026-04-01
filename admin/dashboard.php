@@ -242,7 +242,7 @@ if (function_exists('get_display_target_plan_id')) {
 
         .col-actions {
             white-space: nowrap;
-            width: 200px;
+            width: 110px;
         }
 
         .empty {
