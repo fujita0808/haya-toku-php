@@ -259,7 +259,7 @@ if (function_exists('get_display_target_plan_id')) {
         <a href="coupon_edit.php" class="btn">＋ 新規作成</a>
         <button type="submit" class="btn">表示対象を保存</button>
         <button type="button" class="btn btn-sub" id="clear-selection-btn">選択解除</button>
-       <button type="button" class="btn btn-front" id="open-front-btn">フロント表示</button>oopener noreferrer" class="btn btn-front">フロント表示</a>
+       <button type="button" class="btn btn-front" id="open-front-btn">フロント表示</button>
     </div>
 
     <div class="selection-box">
