@@ -10,6 +10,8 @@ declare(strict_types=1);
  * - 利用可否
  * - 使用済み判定
  * - 公開前 / 公開中 / 終了判定
+ * - フロント表示対象として選択可能か判定
+ * - 現在フロントに表示すべきプラン解決
  * - 画面/API用の状態メッセージ生成
  *
  * 方針：
@@ -62,6 +64,115 @@ if (!function_exists('plan_is_available_now')) {
     }
 }
 
+if (!function_exists('plan_status_code')) {
+    /**
+     * plan の業務状態コードを返す
+     *
+     * 戻り値例:
+     * - draft
+     * - scheduled
+     * - active
+     * - ended
+     * - invalid
+     */
+    function plan_status_code(array $plan, ?int $nowTs = null): string
+    {
+        $nowTs ??= time();
+
+        $startTs = strtotime((string)($plan['start_at'] ?? ''));
+        $endTs = strtotime((string)($plan['end_at'] ?? ''));
+
+        if ($startTs === false || $endTs === false) {
+            return 'invalid';
+        }
+
+        if ($startTs > $endTs) {
+            return 'invalid';
+        }
+
+        if (!plan_is_enabled($plan)) {
+            return 'draft';
+        }
+
+        if ($nowTs < $startTs) {
+            return 'scheduled';
+        }
+
+        if ($nowTs > $endTs) {
+            return 'ended';
+        }
+
+        return 'active';
+    }
+}
+
+if (!function_exists('plan_status_label')) {
+    /**
+     * plan の日本語状態ラベルを返す
+     */
+    function plan_status_label(array $plan, ?int $nowTs = null): string
+    {
+        return match (plan_status_code($plan, $nowTs)) {
+            'draft' => '下書き',
+            'scheduled' => '公開前',
+            'active' => '公開中',
+            'ended' => '終了',
+            default => '設定不正',
+        };
+    }
+}
+
+if (!function_exists('plan_can_be_selected_for_front')) {
+    /**
+     * フロント表示対象として選択可能か
+     * 現在は「公開中(active)」のときのみ選択可能
+     */
+    function plan_can_be_selected_for_front(array $plan, ?int $nowTs = null): bool
+    {
+        return plan_status_code($plan, $nowTs) === 'active';
+    }
+}
+
+if (!function_exists('plan_can_be_displayed_now')) {
+    /**
+     * plan が「今フロント表示可能」か判定する
+     * 現在は「公開中(active)」のときのみ表示可能
+     */
+    function plan_can_be_displayed_now(array $plan, ?int $nowTs = null): bool
+    {
+        return plan_status_code($plan, $nowTs) === 'active';
+    }
+}
+
+if (!function_exists('resolve_current_display_plan')) {
+    /**
+     * dashboard で保存した表示対象を優先して取得する
+     * ただし、現在表示可能である場合のみ採用する
+     *
+     * 前提:
+     * - get_display_target_plan_id()
+     * - find_plan_by_id()
+     * - find_current_plan()
+     * が bootstrap 経由で利用可能
+     */
+    function resolve_current_display_plan(): ?array
+    {
+        if (function_exists('get_display_target_plan_id')) {
+            $displayPlanId = get_display_target_plan_id();
+
+            if (is_string($displayPlanId) && trim($displayPlanId) !== '') {
+                $selectedPlan = find_plan_by_id(trim($displayPlanId));
+
+                if (is_array($selectedPlan) && plan_can_be_displayed_now($selectedPlan)) {
+                    return $selectedPlan;
+                }
+            }
+        }
+
+        return find_current_plan();
+    }
+}
+
 if (!function_exists('coupon_is_used')) {
     function coupon_is_used(array $coupon): bool
     {
@@ -110,60 +221,6 @@ if (!function_exists('coupon_is_usable')) {
         }
 
         return true;
-    }
-}
-
-if (!function_exists('plan_status_code')) {
-    /**
-     * plan の業務状態コードを返す
-     *
-     * 戻り値例:
-     * - draft
-     * - scheduled
-     * - active
-     * - ended
-     * - invalid
-     */
-    function plan_status_code(array $plan, ?int $nowTs = null): string
-    {
-        $nowTs ??= time();
-
-        $startTs = strtotime((string)($plan['start_at'] ?? ''));
-        $endTs = strtotime((string)($plan['end_at'] ?? ''));
-
-        if ($startTs === false || $endTs === false) {
-            return 'invalid';
-        }
-
-        if (!plan_is_enabled($plan)) {
-            return 'draft';
-        }
-
-        if ($nowTs < $startTs) {
-            return 'scheduled';
-        }
-
-        if ($nowTs > $endTs) {
-            return 'ended';
-        }
-
-        return 'active';
-    }
-}
-
-if (!function_exists('plan_status_label')) {
-    /**
-     * plan の日本語状態ラベルを返す
-     */
-    function plan_status_label(array $plan, ?int $nowTs = null): string
-    {
-        return match (plan_status_code($plan, $nowTs)) {
-            'draft' => '下書き',
-            'scheduled' => '公開前',
-            'active' => '公開中',
-            'ended' => '終了',
-            default => '設定不正',
-        };
     }
 }
 

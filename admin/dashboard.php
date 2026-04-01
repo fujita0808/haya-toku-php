@@ -6,7 +6,7 @@ declare(strict_types=1);
  * - プラン一覧表示
  * - 新規作成ページへの導線
  * - 編集ページへの導線
- * - 現在状態表示（公開中 / 公開前 / 期限切れ / 無効）
+ * - 現在状態表示（coupon_logic.php の状態判定を利用）
  * - フロント表示対象の選択（公開中のみ選択可）
  */
 
@@ -14,6 +14,10 @@ require_once __DIR__ . '/../lib/bootstrap.php';
 
 if (!function_exists('find_all_plans')) {
     die('find_all_plans() が未定義です。lib/db.php の読み込みを確認してください。');
+}
+
+if (!function_exists('plan_status_code') || !function_exists('plan_status_label')) {
+    die('plan_status_code() / plan_status_label() が未定義です。lib/coupon_logic.php の読み込みを確認してください。');
 }
 
 $plans = find_all_plans();
@@ -42,77 +46,18 @@ function to_timestamp_or_null(mixed $value): ?int
 }
 
 /**
- * 現在状態コード
- * - active   : 公開中
- * - upcoming : 公開前
- * - expired  : 期限切れ
- * - inactive : 無効
- * - invalid  : 設定不正
- */
-function dashboard_status_code(array $plan, int $nowTs): string
-{
-    $isActive = !empty($plan['is_active']);
-    if (!$isActive) {
-        return 'inactive';
-    }
-
-    $startAt = to_timestamp_or_null($plan['start_at'] ?? '');
-    $endAt   = to_timestamp_or_null($plan['end_at'] ?? '');
-
-    if ($startAt === null || $endAt === null) {
-        return 'invalid';
-    }
-
-    if ($startAt > $endAt) {
-        return 'invalid';
-    }
-
-    if ($nowTs < $startAt) {
-        return 'upcoming';
-    }
-
-    if ($nowTs > $endAt) {
-        return 'expired';
-    }
-
-    return 'active';
-}
-
-/**
- * 状態ラベル
- */
-function dashboard_status_label(string $statusCode): string
-{
-    return match ($statusCode) {
-        'active'   => '公開中',
-        'upcoming' => '公開前',
-        'expired'  => '期限切れ',
-        'inactive' => '無効',
-        default    => '設定不正',
-    };
-}
-
-/**
  * 状態バッジ用 class
+ * 業務状態コードを UI 用 class に変換する
  */
 function dashboard_status_class(string $statusCode): string
 {
     return match ($statusCode) {
-        'active'   => 'status-active',
-        'upcoming' => 'status-upcoming',
-        'expired'  => 'status-expired',
-        'inactive' => 'status-inactive',
-        default    => 'status-invalid',
+        'active' => 'status-active',
+        'scheduled' => 'status-scheduled',
+        'ended' => 'status-ended',
+        'draft' => 'status-draft',
+        default => 'status-invalid',
     };
-}
-
-/**
- * 表示対象として選択可能か
- * 今回は「公開中」のときだけ選択可
- */
-function can_select_for_front(array $plan, int $nowTs): bool
-{
-    return dashboard_status_code($plan, $nowTs) === 'active';
 }
 
 /**
@@ -130,7 +75,7 @@ function format_datetime_value(mixed $value): string
 
 /**
  * 現在選択中の表示対象ID
- * - 将来 get_display_target_plan_id() を用意したら自動利用
+ * - get_display_target_plan_id() を利用
  * - なければ未選択扱い
  */
 $selectedPlanId = null;
@@ -251,17 +196,17 @@ if (function_exists('get_display_target_plan_id')) {
             background: #e8f7ed;
         }
 
-        .status-upcoming {
+        .status-scheduled {
             color: #1f5fbf;
             background: #eaf2ff;
         }
 
-        .status-expired {
+        .status-ended {
             color: #c62828;
             background: #fdecec;
         }
 
-        .status-inactive {
+        .status-draft {
             color: #666;
             background: #f0f0f0;
         }
@@ -314,7 +259,7 @@ if (function_exists('get_display_target_plan_id')) {
     <div class="selection-box">
         <div class="title">フロント表示対象の選択</div>
         <div class="hint">
-            公開中のプランだけ選択できます。公開前・期限切れ・無効は選択できません。<br>
+            公開中のプランだけ選択できます。公開前・終了・下書き・設定不正は選択できません。<br>
             「選択解除」を押すと未選択のまま保存できます。
         </div>
         <input type="hidden" name="display_plan_id" id="display_plan_id" value="<?= e($selectedPlanId ?? '') ?>">
@@ -348,10 +293,10 @@ if (function_exists('get_display_target_plan_id')) {
                 <?php foreach ($plans as $plan): ?>
                     <?php
                     $planId = (string)($plan['id'] ?? '');
-                    $statusCode = dashboard_status_code($plan, $nowTs);
-                    $statusLabel = dashboard_status_label($statusCode);
+                    $statusCode = plan_status_code($plan, $nowTs);
+                    $statusLabel = plan_status_label($plan, $nowTs);
                     $statusClass = dashboard_status_class($statusCode);
-                    $selectable = can_select_for_front($plan, $nowTs);
+                    $selectable = plan_can_be_selected_for_front($plan, $nowTs);
                     $checked = ($selectedPlanId !== null && $selectedPlanId === $planId);
                     ?>
                     <tr class="<?= $selectable ? '' : 'row-disabled' ?>">
