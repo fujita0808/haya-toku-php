@@ -10,7 +10,7 @@ if (!$plan) {
     $payload = [
         'ok' => false,
         'app' => [
-            'documentTitle' => '早得クーポン | HAYA-TOKU（ver / PHP PoC）',
+            'documentTitle' => '早得（HAYA-TOKU）（🍊ver / PHP PoC）',
             'displayName' => HAYA_TOKU_APP_NAME,
         ],
         'error' => [
@@ -40,13 +40,42 @@ if (!$plan) {
     exit;
 }
 
+$viewModel = build_plan_view_model($plan);
+$schedule = $viewModel['schedule'] ?? [];
+
 $response = [
     'ok' => true,
     'app' => [
-        'documentTitle' => '早得クーポン | HAYA-TOKU（ver / PHP PoC）',
+        'documentTitle' => '早得クーポン | HAYA_TOKU（ver / PHP PoC）',
         'displayName' => HAYA_TOKU_APP_NAME,
     ],
-    'plan' => $plan,
+    'plan' => [
+        'id' => (string)$viewModel['id'],
+        'title' => (string)$viewModel['title'],
+        'description' => (string)$viewModel['description'],
+        'product_name' => (string)$viewModel['product_name'],
+        'status_code' => (string)$viewModel['status_code'],
+        'status_label' => (string)$viewModel['status_label'],
+        'is_active' => (bool)$viewModel['is_active'],
+        'start_at' => (string)$viewModel['start_at'],
+        'end_at' => (string)$viewModel['end_at'],
+        'initial_discount_rate' => (float)$viewModel['initial_discount_rate'],
+        'min_discount_rate' => (float)$viewModel['min_discount_rate'],
+        'rules' => is_array($viewModel['rules']) ? $viewModel['rules'] : [],
+        'notes' => (string)$viewModel['notes'],
+    ],
+    'schedule' => [
+        'status' => (string)($schedule['status'] ?? ''),
+        'is_active_now' => (bool)($schedule['is_active_now'] ?? false),
+        'current_discount_rate' => (float)($schedule['current_discount_rate'] ?? 0),
+        'initial_discount_rate' => (float)($schedule['initial_discount_rate'] ?? 0),
+        'min_discount_rate' => (float)($schedule['min_discount_rate'] ?? 0),
+        'total_days' => (int)($schedule['total_days'] ?? 0),
+        'elapsed_days' => (int)($schedule['elapsed_days'] ?? 0),
+        'remaining_days' => (int)($schedule['remaining_days'] ?? 0),
+        'progress_ratio' => (float)($schedule['progress_ratio'] ?? 0),
+        'next_change_at' => $schedule['next_change_at'] ?? null,
+    ],
 ];
 
 if (function_exists('api_success')) {

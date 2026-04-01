@@ -170,7 +170,7 @@ function applyCurrentView(p){
   const schedule = p.schedule || {};
 
   if(app.documentTitle){
-    document.title = app.documentTitle.replace("HAYA-TOKU", "早得（HAYA-TOKU）");
+    document.title = app.documentTitle;
   }
 
   byId("product").innerText = plan.product_name || "---";

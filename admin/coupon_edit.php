@@ -54,7 +54,7 @@ if (!empty($plan['rules']) && is_array($plan['rules'])) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>早得ルール編集 | 早得（HAYA-TOKU）</title>
+  <title>早得ルール編集 |早得（HAYA-TOKU）（🍊ver / PHP PoC）</title>
   <style>
     body {
       font-family: system-ui, sans-serif;

@@ -90,7 +90,7 @@ if (function_exists('get_display_target_plan_id')) {
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>管理画面 | HAYA-TOKU</title>
+    <title>管理画面 |早得（HAYA-TOKU）（🍊ver / PHP PoC）</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <style>
@@ -138,7 +138,12 @@ if (function_exists('get_display_target_plan_id')) {
         .btn-sub {
             background: #666;
         }
-
+        .btn-front {
+            background: #666;
+            padding: 6px 12px;
+            font-size: 13px;
+            margin-left: 6px;
+        }
         .now-info {
             margin-bottom: 12px;
             color: #666;
@@ -237,7 +242,7 @@ if (function_exists('get_display_target_plan_id')) {
 
         .col-actions {
             white-space: nowrap;
-            width: 110px;
+            width: 200px;
         }
 
         .empty {
@@ -325,7 +330,8 @@ if (function_exists('get_display_target_plan_id')) {
                         </td>
                         <td><?= e(format_datetime_value($plan['updated_at'] ?? '')) ?></td>
                         <td class="col-actions">
-                            <a href="coupon_edit.php?id=<?= urlencode($planId) ?>" class="btn btn-edit">編集</a>
+                        <a href="coupon_edit.php?id=<?= urlencode($planId) ?>" class="btn btn-edit">編集</a>
+                        <a href="/public/index.html" target="_blank" rel="noopener noreferrer" class="btn btn-front">フロント表示</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

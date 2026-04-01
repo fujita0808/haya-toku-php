@@ -65,7 +65,7 @@ coupon_logic.php    → 判断する
 coupon_schedule.php → 計算する
 dashboard / index   → 見せる
 api                 → つなぐ
----
+```
 
 ## 1. 取得・保存
 
