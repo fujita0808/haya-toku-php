@@ -379,7 +379,7 @@ if (!function_exists('save_plan')) {
             'min_discount_rate' => $plan['min_discount_rate'],
             'rules' => json_encode($plan['rules'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
             'notes' => $plan['notes'],
-            'is_active' => $plan['is_active'],
+            'is_active' => $plan['is_active'] ? 'true' : 'false',
             'created_at' => $input['created_at'] ?? $now,
             'updated_at' => $now,
         ];
