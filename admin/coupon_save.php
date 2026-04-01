@@ -13,7 +13,7 @@ try {
     // ★① boolean補正（ここで確定させる）
     $_POST['is_active'] = isset($_POST['is_active']) && $_POST['is_active'] == '1';
 
-    $plan = normalize_plan_from_save($_POST);
+    $plan = normalize_plan_for_save($_POST);
 
     // ★② active一意制御
     if (!empty($plan['is_active'])) {
