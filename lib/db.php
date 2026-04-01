@@ -2,9 +2,6 @@
 
 declare(strict_types=1);
 
-use PDO;
-use PDOException;
-use RuntimeException;
 
 if (!function_exists('db')) {
     /**

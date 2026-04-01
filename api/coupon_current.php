@@ -6,23 +6,42 @@ require_once __DIR__ . '/../lib/bootstrap.php';
 
 $plan = resolve_current_display_plan();
 
+$selectedPlanId = null;
+if (function_exists('get_display_target_plan_id')) {
+    $selectedPlanId = get_display_target_plan_id();
+    if ($selectedPlanId !== null) {
+        $selectedPlanId = trim((string)$selectedPlanId);
+    }
+}
+
 if (!$plan) {
+    $errorCode = 'PLAN_NOT_FOUND';
+    $errorMessage = '現在表示可能なクーポンがありません。';
+
+    if ($selectedPlanId === null || $selectedPlanId === '') {
+        $errorCode = 'DISPLAY_PLAN_NOT_SELECTED';
+        $errorMessage = '表示させるクーポンを選択してください！';
+    } else {
+        $errorCode = 'DISPLAY_PLAN_NOT_AVAILABLE';
+        $errorMessage = '選択されたクーポンは現在表示できません。';
+    }
+
     $payload = [
         'ok' => false,
         'app' => [
-            'documentTitle' => '早得（HAYA-TOKU）（🍊ver / PHP PoC）',
+            'documentTitle' => '早得クーポン | 早得（HAYA-TOKU）',
             'displayName' => HAYA_TOKU_APP_NAME,
         ],
         'error' => [
-            'code' => 'PLAN_NOT_FOUND',
-            'message' => '現在表示可能なクーポンがありません。',
+            'code' => $errorCode,
+            'message' => $errorMessage,
         ],
     ];
 
     if (function_exists('api_error')) {
         api_error(
-            'PLAN_NOT_FOUND',
-            '現在表示可能なクーポンがありません。',
+            $errorCode,
+            $errorMessage,
             404,
             [
                 'app' => $payload['app'],

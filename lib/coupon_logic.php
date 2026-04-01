@@ -169,7 +169,7 @@ if (!function_exists('resolve_current_display_plan')) {
             }
         }
 
-        return find_current_plan();
+        return null;
     }
 }
 
