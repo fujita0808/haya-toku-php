@@ -15,11 +15,7 @@ try {
 
     $plan = normalize_plan_for_save($_POST);
 
-    // ★② active一意制御
-    if (!empty($plan['is_active'])) {
-        db()->exec("UPDATE coupon_plans SET is_active = false");
-    }
-
+   
     save_plan($plan);
 
     redirect_to('/admin/dashboard.php');

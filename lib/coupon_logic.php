@@ -90,10 +90,6 @@ if (!function_exists('plan_status_code')) {
             return 'invalid';
         }
 
-        if (!plan_is_enabled($plan)) {
-            return 'draft';
-        }
-
         if ($nowTs < $startTs) {
             return 'scheduled';
         }
