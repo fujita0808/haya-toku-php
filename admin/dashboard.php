@@ -143,9 +143,8 @@ if (function_exists('get_display_target_plan_id')) {
 
         .btn-front {
             background: #666;
-            padding: 6px 12px;
-            font-size: 13px;
-            margin-left: 6px;
+            padding: 10px 16px;
+            font-size: 14px;
         }
 
         .now-info {
@@ -174,8 +173,13 @@ if (function_exists('get_display_target_plan_id')) {
             margin-bottom: 6px;
         }
 
+        .table-wrap {
+            overflow-x: auto;
+        }
+
         table {
-            width: 100%;
+            min-width: 1100px;
+            width: auto;
             border-collapse: collapse;
             background: #fff;
         }
@@ -247,6 +251,15 @@ if (function_exists('get_display_target_plan_id')) {
             opacity: 0.45;
         }
 
+        .row-selected {
+            background: #e8f4ff;
+            border-left: 4px solid #3498db;
+        }
+
+        .row-selected td {
+            font-weight: 600;
+        }
+
         .col-title {
             white-space: nowrap;
             overflow: hidden;
@@ -262,15 +275,6 @@ if (function_exists('get_display_target_plan_id')) {
         .empty {
             color: #666;
         }
-
-        .table-wrap {
-            overflow-x: auto;
-        }
-
-        table {
-            min-width: 1100px;
-            width: auto;
-        }
     </style>
 </head>
 
@@ -281,7 +285,6 @@ if (function_exists('get_display_target_plan_id')) {
     <form method="post" action="display_target_save.php" id="display-target-form">
         <div class="toolbar">
             <a href="coupon_edit.php" class="btn">＋ 新規作成</a>
-            <button type="submit" class="btn">表示対象を保存</button>
             <button type="button" class="btn btn-sub" id="clear-selection-btn">選択解除</button>
             <button type="button" class="btn btn-front" id="open-front-btn">フロント表示</button>
         </div>
@@ -365,14 +368,33 @@ if (function_exists('get_display_target_plan_id')) {
             const hiddenInput = document.getElementById('display_plan_id');
             const radios = document.querySelectorAll('input[name="display_plan_id_radio"]');
             const clearBtn = document.getElementById('clear-selection-btn');
+            const form = document.getElementById('display-target-form');
+            const openFrontBtn = document.getElementById('open-front-btn');
 
             function syncHiddenFromChecked() {
                 const checked = document.querySelector('input[name="display_plan_id_radio"]:checked');
                 hiddenInput.value = checked ? checked.value : '';
             }
 
+            function updateRowHighlight() {
+                const rows = document.querySelectorAll('tbody tr');
+                rows.forEach((row) => row.classList.remove('row-selected'));
+
+                const checked = document.querySelector('input[name="display_plan_id_radio"]:checked');
+                if (!checked) return;
+
+                const row = checked.closest('tr');
+                if (row) {
+                    row.classList.add('row-selected');
+                }
+            }
+
             radios.forEach((radio) => {
-                radio.addEventListener('change', syncHiddenFromChecked);
+                radio.addEventListener('change', () => {
+                    syncHiddenFromChecked();
+                    updateRowHighlight();
+                    form.submit();
+                });
             });
 
             clearBtn.addEventListener('click', () => {
@@ -380,12 +402,9 @@ if (function_exists('get_display_target_plan_id')) {
                     radio.checked = false;
                 });
                 hiddenInput.value = '';
+                updateRowHighlight();
+                form.submit();
             });
-
-            syncHiddenFromChecked();
-
-
-            const openFrontBtn = document.getElementById('open-front-btn');
 
             openFrontBtn.addEventListener('click', () => {
                 const checked = document.querySelector('input[name="display_plan_id_radio"]:checked');
@@ -397,6 +416,9 @@ if (function_exists('get_display_target_plan_id')) {
 
                 window.open('/public/index.html', '_blank');
             });
+
+            syncHiddenFromChecked();
+            updateRowHighlight();
         })();
     </script>
 
