@@ -228,7 +228,13 @@ if (function_exists('get_display_target_plan_id')) {
 
         .select-cell {
             text-align: center;
-            width: 92px;
+            width: 72px;
+        }
+
+        .select-cell input[type="radio"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
         }
 
         .row-disabled {
@@ -238,11 +244,14 @@ if (function_exists('get_display_target_plan_id')) {
 
         .row-disabled input[type="radio"] {
             cursor: not-allowed;
+            opacity: 0.45;
         }
 
-        .disabled-note {
-            font-size: 12px;
-            color: #888;
+        .col-title {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 220px;
         }
 
         .col-actions {
@@ -252,6 +261,15 @@ if (function_exists('get_display_target_plan_id')) {
 
         .empty {
             color: #666;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            min-width: 1100px;
+            width: auto;
         }
     </style>
 </head>
@@ -281,66 +299,65 @@ if (function_exists('get_display_target_plan_id')) {
             判定時刻: <?= e(date('Y-m-d H:i:s', $nowTs)) ?>
         </div>
 
-        <table>
-            <thead>
-                <tr>
-                    <th class="select-cell">表示</th>
-                    <th>商品名</th>
-                    <th>タイトル</th>
-                    <th>説明文</th>
-                    <th>状態</th>
-                    <th>開始日時</th>
-                    <th>終了日時</th>
-                    <th>更新日時</th>
-                    <th class="col-actions">操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($plans)): ?>
+        <div class="table-wrap">
+            <table>
+                <thead>
                     <tr>
-                        <td colspan="9" class="empty">データがありません</td>
+                        <th class="select-cell">表示</th>
+                        <th>商品名</th>
+                        <th>タイトル</th>
+                        <th>説明文</th>
+                        <th>状態</th>
+                        <th>開始日時</th>
+                        <th>終了日時</th>
+                        <th>更新日時</th>
+                        <th class="col-actions">操作</th>
                     </tr>
-                <?php else: ?>
-                    <?php foreach ($plans as $plan): ?>
-                        <?php
-                        $planId = (string)($plan['id'] ?? '');
-                        $statusCode = plan_status_code($plan, $nowTs);
-                        $statusLabel = plan_status_label($plan, $nowTs);
-                        $statusClass = dashboard_status_class($statusCode);
-                        $selectable = plan_can_be_selected_for_front($plan, $nowTs);
-                        $checked = ($selectedPlanId !== null && $selectedPlanId === $planId);
-                        ?>
-                        <tr class="<?= $selectable ? '' : 'row-disabled' ?>">
-                            <td class="select-cell">
-                                <input
-                                    type="radio"
-                                    name="display_plan_id_radio"
-                                    value="<?= e($planId) ?>"
-                                    <?= $checked ? 'checked' : '' ?>
-                                    <?= $selectable ? '' : 'disabled' ?>>
-                                <?php if (!$selectable): ?>
-                                    <div class="disabled-note">選択不可</div>
-                                <?php endif; ?>
-                            </td>
-                            <td><?= e((string)($plan['product_name'] ?? '')) ?></td>
-                            <td><?= e((string)($plan['title'] ?? '')) ?></td>
-                            <td><?= e((string)($plan['description'] ?? '')) ?></td>
-                            <td>
-                                <span class="status-badge <?= e($statusClass) ?>">
-                                    <?= e($statusLabel) ?>
-                                </span>
-                            </td>
-                            <td><?= e(format_datetime_value($plan['start_at'] ?? '')) ?></td>
-                            <td><?= e(format_datetime_value($plan['end_at'] ?? '')) ?></td>
-                            <td><?= e(format_datetime_value($plan['updated_at'] ?? '')) ?></td>
-                            <td class="col-actions">
-                                <a href="coupon_edit.php?id=<?= urlencode($planId) ?>" class="btn btn-edit">編集</a>
-                            </td>
+                </thead>
+                <tbody>
+                    <?php if (empty($plans)): ?>
+                        <tr>
+                            <td colspan="9" class="empty">データがありません</td>
                         </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
+                    <?php else: ?>
+                        <?php foreach ($plans as $plan): ?>
+                            <?php
+                            $planId = (string)($plan['id'] ?? '');
+                            $statusCode = plan_status_code($plan, $nowTs);
+                            $statusLabel = plan_status_label($plan, $nowTs);
+                            $statusClass = dashboard_status_class($statusCode);
+                            $selectable = plan_can_be_selected_for_front($plan, $nowTs);
+                            $checked = ($selectedPlanId !== null && $selectedPlanId === $planId);
+                            ?>
+                            <tr class="<?= $selectable ? '' : 'row-disabled' ?>">
+                                <td class="select-cell">
+                                    <input
+                                        type="radio"
+                                        name="display_plan_id_radio"
+                                        value="<?= e($planId) ?>"
+                                        <?= $checked ? 'checked' : '' ?>
+                                        <?= $selectable ? '' : 'disabled' ?>>
+                                </td>
+                                <td><?= e((string)($plan['product_name'] ?? '')) ?></td>
+                                <td><?= e((string)($plan['title'] ?? '')) ?></td>
+                                <td><?= e((string)($plan['description'] ?? '')) ?></td>
+                                <td>
+                                    <span class="status-badge <?= e($statusClass) ?>">
+                                        <?= e($statusLabel) ?>
+                                    </span>
+                                </td>
+                                <td><?= e(format_datetime_value($plan['start_at'] ?? '')) ?></td>
+                                <td><?= e(format_datetime_value($plan['end_at'] ?? '')) ?></td>
+                                <td><?= e(format_datetime_value($plan['updated_at'] ?? '')) ?></td>
+                                <td class="col-actions">
+                                    <a href="coupon_edit.php?id=<?= urlencode($planId) ?>" class="btn btn-edit">編集</a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </form>
 
     <script>
