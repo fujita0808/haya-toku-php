@@ -259,7 +259,7 @@ if (function_exists('get_display_target_plan_id')) {
         <a href="coupon_edit.php" class="btn">＋ 新規作成</a>
         <button type="submit" class="btn">表示対象を保存</button>
         <button type="button" class="btn btn-sub" id="clear-selection-btn">選択解除</button>
-        <a href="/public/index.html" target="_blank" rel="noopener noreferrer" class="btn btn-front">フロント表示</a>
+       <button type="button" class="btn btn-front" id="open-front-btn">フロント表示</button>oopener noreferrer" class="btn btn-front">フロント表示</a>
     </div>
 
     <div class="selection-box">
@@ -363,6 +363,20 @@ if (function_exists('get_display_target_plan_id')) {
     });
 
     syncHiddenFromChecked();
+
+
+    const openFrontBtn = document.getElementById('open-front-btn');
+
+    openFrontBtn.addEventListener('click', () => {
+    const checked = document.querySelector('input[name="display_plan_id_radio"]:checked');
+
+    if (!checked) {
+        alert('表示させるクーポンを選択してください！');
+        return;
+    }
+
+    window.open('/public/index.html', '_blank');
+});
 })();
 </script>
 
