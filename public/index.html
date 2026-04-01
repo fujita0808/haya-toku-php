@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8" />
   <title>早得（HAYA-TOKU）（🍊ver / PHP PoC）</title>
@@ -67,7 +68,7 @@
       inset: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0,0,0,0.6);
+      background: rgba(0, 0, 0, 0.6);
       display: none;
       align-items: center;
       justify-content: center;
@@ -135,131 +136,171 @@
     </div>
   </div>
 
-<script>
-const API_BASE = "https://haya-toku-php.onrender.com/api";
+  <script>
+    const API_BASE = "https://haya-toku-php.onrender.com/api";
 
-let currentCouponId = null;
-let countdownTimer = null;
+    let currentCouponId = null;
+    let countdownTimer = null;
 
-function byId(id){ return document.getElementById(id); }
-
-function setMessage(text, isError=false){
-  const el = byId("message");
-  el.innerText = text || "";
-  el.style.color = isError ? "#c62828" : "#444";
-}
-
-function formatPercent(rate){
-  return (Number(rate || 0) * 100).toFixed(0) + "%";
-}
-
-function formatDateTime(v){
-  if(!v) return "-";
-  const d = new Date(v);
-  return isNaN(d) ? v : d.toLocaleString("ja-JP");
-}
-
-function closeModal(){
-  byId("modal").style.display="none";
-  clearInterval(countdownTimer);
-}
-
-function applyCurrentView(p){
-  const app = p.app || {};
-  const plan = p.plan || {};
-  const schedule = p.schedule || {};
-
-  if(app.documentTitle){
-    document.title = app.documentTitle;
-  }
-
-  byId("product").innerText = plan.product_name || "---";
-  byId("statusLabel").innerText = plan.status_label || "---";
-  byId("rate").innerText = formatPercent(schedule.current_discount_rate);
-
-  byId("periodInfo").innerText =
-    `残り${schedule.remaining_days || 0}日 / 次回 ${formatDateTime(schedule.next_change_at)}`;
-
-  const usable = schedule.is_active_now && plan.is_active;
-  byId("btn").disabled = !usable;
-
-  if(!usable){
-    setMessage("現在この早得クーポンは発行できません", true);
-  }else{
-    setMessage("");
-  }
-}
-
-async function loadCurrent(){
-  const r = await fetch(API_BASE+"/coupon_current.php");
-  const d = await r.json();
-
-  if(!d.ok){
-    setMessage(d.error?.message, true);
-    return;
-  }
-
-  applyCurrentView(d.data);
-}
-
-async function issueCoupon(){
-  const r = await fetch(API_BASE+"/coupon_issue.php",{method:"POST"});
-  const d = await r.json();
-
-  if(!d.ok){
-    setMessage(d.error?.message, true);
-    return;
-  }
-
-  const p = d.data;
-  currentCouponId = p.coupon.id;
-
-  openModal(p.plan.product_name, formatPercent(p.schedule.current_discount_rate));
-}
-
-async function useCoupon(){
-  if(!currentCouponId) return;
-
-  const r = await fetch(API_BASE+"/coupon_use.php",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({coupon_id: currentCouponId})
-  });
-
-  const d = await r.json();
-
-  if(!d.ok){
-    setMessage(d.error?.message,true);
-  }else{
-    setMessage(d.data.message);
-  }
-
-  closeModal();
-  loadCurrent();
-}
-
-function openModal(name, rate){
-  byId("modal").style.display="flex";
-  byId("couponName").innerText=name;
-  byId("modalRate").innerText=rate;
-
-  let c=10;
-  byId("countdown").innerText=c;
-
-  countdownTimer=setInterval(()=>{
-    c--;
-    byId("countdown").innerText=c;
-    if(c<=0){
-      clearInterval(countdownTimer);
-      useCoupon();
+    function byId(id) {
+      return document.getElementById(id);
     }
-  },1000);
-}
 
-byId("btn").onclick = issueCoupon;
+    function setMessage(text, isError = false) {
+      const el = byId("message");
+      el.innerText = text || "";
+      el.style.color = isError ? "#c62828" : "#444";
+    }
 
-loadCurrent();
-</script>
+    function formatPercent(rate) {
+      return (Number(rate || 0) * 100).toFixed(0) + "%";
+    }
+
+    function formatDateTime(v) {
+      if (!v) return "-";
+      const d = new Date(v);
+      return isNaN(d) ? v : d.toLocaleString("ja-JP");
+    }
+
+    function closeModal() {
+      byId("modal").style.display = "none";
+      clearInterval(countdownTimer);
+    }
+
+    function applyCurrentView(payload) {
+      const app = payload.app || {};
+      const plan = payload.plan || {};
+      const schedule = payload.schedule || {};
+
+      if (app.documentTitle) {
+        document.title = app.documentTitle;
+      }
+
+      byId("product").innerText = plan.product_name || "---";
+      byId("statusLabel").innerText = plan.status_label || "---";
+      byId("rate").innerText = formatPercent(schedule.current_discount_rate);
+
+      byId("periodInfo").innerText =
+        `残り${schedule.remaining_days || 0}日 / 次回 ${formatDateTime(schedule.next_change_at)}`;
+
+      const usable = schedule.is_active_now && plan.is_active;
+      byId("btn").disabled = !usable;
+
+      if (!usable) {
+        setMessage("現在この早得クーポンは発行できません。", true);
+      } else {
+        setMessage("");
+      }
+    }
+
+    async function loadCurrent() {
+      try {
+        const r = await fetch(API_BASE + "/coupon_current.php");
+        const d = await r.json();
+
+        if (!d.ok) {
+          setMessage(d.error?.message || "現在表示可能なクーポンがありません。", true);
+          byId("btn").disabled = true;
+          byId("product").innerText = "---";
+          byId("statusLabel").innerText = "---";
+          byId("rate").innerText = "--%";
+          byId("periodInfo").innerText = "---";
+          return;
+        }
+
+        applyCurrentView(d.data);
+      } catch (e) {
+        setMessage("現在情報の取得に失敗しました。", true);
+        byId("btn").disabled = true;
+      }
+    }
+
+    async function issueCoupon() {
+      try {
+        const r = await fetch(API_BASE + "/coupon_issue.php", {
+          method: "POST"
+        });
+        const d = await r.json();
+
+        if (!d.ok) {
+          setMessage(d.error?.message || "発行エラー", true);
+          return;
+        }
+
+        const p = d.data;
+        currentCouponId = p.coupon.id;
+
+        openModal(
+          p.plan.product_name || "クーポン",
+          formatPercent(p.schedule.current_discount_rate)
+        );
+      } catch (e) {
+        setMessage("クーポン発行に失敗しました。", true);
+      }
+    }
+
+    async function useCoupon() {
+      if (!currentCouponId) return;
+
+      try {
+        const r = await fetch(API_BASE + "/coupon_use.php", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            coupon_id: currentCouponId
+          })
+        });
+
+        const d = await r.json();
+
+        if (!d.ok) {
+          setMessage(d.error?.message || "使用エラー", true);
+        } else {
+          setMessage(d.data?.message || "クーポンを使用済みにしました。");
+        }
+      } catch (e) {
+        setMessage("クーポン使用に失敗しました。", true);
+      }
+
+      closeModal();
+      currentCouponId = null;
+      loadCurrent();
+    }
+
+    function openModal(productName, rateText) {
+      byId("modal").style.display = "flex";
+      byId("couponName").innerText = productName;
+      byId("modalRate").innerText = rateText;
+      byId("modalSubMessage").innerText = "10秒後に自動で使用確定します。";
+
+      let count = 10;
+      byId("countdown").innerText = count;
+
+      clearInterval(countdownTimer);
+      countdownTimer = setInterval(() => {
+        count--;
+        byId("countdown").innerText = count;
+
+        if (count <= 0) {
+          clearInterval(countdownTimer);
+          useCoupon();
+        }
+      }, 1000);
+    }
+
+    byId("btn").addEventListener("click", issueCoupon);
+
+    byId("modal").addEventListener("click", (event) => {
+      if (event.target === byId("modal")) {
+        closeModal();
+      }
+    });
+
+    loadCurrent();
+  </script>
 
 </body>
+
 </html>
