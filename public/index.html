@@ -140,6 +140,7 @@
     const API_BASE = "https://haya-toku-php.onrender.com/api";
 
     let currentCouponId = null;
+    let currentPlanId = null;
     let countdownTimer = null;
 
     function byId(id) {
@@ -172,6 +173,8 @@
       const plan = payload.plan || {};
       const schedule = payload.schedule || {};
 
+      currentPlanId = plan.id || null;
+
       if (app.documentTitle) {
         document.title = app.documentTitle;
       }
@@ -199,6 +202,7 @@
         const d = await r.json();
 
         if (!d.ok) {
+          currentPlanId = null;
           setMessage(d.error?.message || "現在表示可能なクーポンがありません。", true);
           byId("btn").disabled = true;
           byId("product").innerText = "---";
@@ -215,29 +219,41 @@
       }
     }
 
-    async function issueCoupon() {
-      try {
-        const r = await fetch(API_BASE + "/coupon_issue.php", {
-          method: "POST"
-        });
-        const d = await r.json();
-
-        if (!d.ok) {
-          setMessage(d.error?.message || "発行エラー", true);
-          return;
-        }
-
-        const p = d.data;
-        currentCouponId = p.coupon.id;
-
-        openModal(
-          p.plan.product_name || "クーポン",
-          formatPercent(p.schedule.current_discount_rate)
-        );
-      } catch (e) {
-        setMessage("クーポン発行に失敗しました。", true);
-      }
+ async function issueCoupon() {
+  try {
+    if (!currentPlanId) {
+      setMessage("対象プランIDが取得できていません。", true);
+      return;
     }
+
+    const r = await fetch(API_BASE + "/coupon_issue.php", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        plan_id: currentPlanId
+      })
+    });
+
+    const d = await r.json();
+
+    if (!d.ok) {
+      setMessage(d.error?.message || "発行エラー", true);
+      return;
+    }
+
+    const p = d.data;
+    currentCouponId = p.coupon.id;
+
+    openModal(
+      p.plan.product_name || "クーポン",
+      formatPercent(p.schedule.current_discount_rate)
+    );
+  } catch (e) {
+    setMessage("クーポン発行に失敗しました。", true);
+  }
+}
 
     async function useCoupon() {
       if (!currentCouponId) return;

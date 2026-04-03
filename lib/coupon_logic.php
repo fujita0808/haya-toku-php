@@ -153,16 +153,14 @@ if (!function_exists('resolve_current_display_plan')) {
      */
     function resolve_current_display_plan(): ?array
     {
-        if (function_exists('get_display_target_plan_id')) {
-            $displayPlanId = get_display_target_plan_id();
+        if (!function_exists('find_display_target_plan')) {
+            return null;
+        }
 
-            if (is_string($displayPlanId) && trim($displayPlanId) !== '') {
-                $selectedPlan = find_plan_by_id(trim($displayPlanId));
+        $selectedPlan = find_display_target_plan();
 
-                if (is_array($selectedPlan) && plan_can_be_displayed_now($selectedPlan)) {
-                    return $selectedPlan;
-                }
-            }
+        if (is_array($selectedPlan) && plan_can_be_displayed_now($selectedPlan)) {
+            return $selectedPlan;
         }
 
         return null;

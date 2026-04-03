@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../lib/bootstrap.php';
 
-$plan = resolve_current_display_plan();
+$plan = find_display_target_plan();
 
 $selectedPlanId = null;
 if (function_exists('get_display_target_plan_id')) {

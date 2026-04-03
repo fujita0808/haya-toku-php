@@ -548,3 +548,41 @@ if (!function_exists('find_coupon_by_code')) {
         return is_array($row) ? decode_coupon_row($row) : null;
     }
 }
+
+function find_display_target_plan(): ?array
+{
+    $pdo = db();
+
+    $stmt = $pdo->query("
+        SELECT *
+        FROM coupon_plans
+        WHERE is_display_target = TRUE
+        ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST
+        LIMIT 1
+    ");
+
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function set_display_target_plan_id(?string $planId): void
+{
+    $pdo = db();
+
+    // 全解除
+    $pdo->exec("UPDATE coupon_plans SET is_display_target = FALSE");
+
+    if ($planId === null || $planId === '') {
+        return;
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE coupon_plans
+        SET is_display_target = TRUE
+        WHERE id = :id
+    ");
+
+    $stmt->execute([
+        ':id' => $planId,
+    ]);
+}

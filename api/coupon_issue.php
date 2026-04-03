@@ -44,12 +44,6 @@ $planId = trim((string)($input['plan_id'] ?? ''));
 $userId = trim((string)($input['user_id'] ?? ''));
 $notes = trim((string)($input['notes'] ?? ''));
 
-if ($planId === '') {
-    $currentPlan = find_current_plan();
-    if ($currentPlan !== null) {
-        $planId = (string)($currentPlan['id'] ?? '');
-    }
-}
 
 if ($planId === '') {
     api_error('PLAN_ID_REQUIRED', 'plan_id が必要です。', 400);
