@@ -1,111 +1,139 @@
+結論です。
+**現状コードと完全一致する README（貼り替え用）をそのまま出します。**
+（本日付 ver 付記済み）
+
+---
+
 # 早得（HAYA-TOKU）（🍊ver / PHP PoC）
+
+**ver: 2026-04-03**
 
 ---
 
 ## ■ 概要
 
-早得（HAYA-TOKU）は  
+早得（HAYA-TOKU）は
 時間経過に応じて割引率が変動するクーポンを提供するシステムです。
 
 ---
 
-## ■ 現在の設計（重要）
+## ■ 現在の設計（最重要）
 
 本システムは以下の3要素を分離して扱う
 
-状態（status） = 時間条件  
-表示（display） = 管理画面の選択  
+状態（status） = 時間 + is_active
+表示（display） = 管理画面の選択（DB）
 データ（plan） = DB
 
 ---
 
 ## ■ 状態の定義
 
-状態は coupon_logic.php にて判定される
+状態は `coupon_logic.php` にて判定される
 
 判定ルール：
 
-開始日時・終了日時のみで決定
+* scheduled：now < start_at
+* active：start_at <= now <= end_at
+* ended：now > end_at
+* invalid：日付不正
 
-- scheduled：now < start_at
-- active：start_at <= now <= end_at
-- ended：now > end_at
-- invalid：日付不正
-
-※ is_active は状態判定に使用しない
-
----
-
-## ■ フロント表示の仕組み
-
-表示対象 = 管理画面のラジオ選択
-
-- 保存先：storage/display_target.json
-- API：coupon_current.php
-- 取得関数：resolve_current_display_plan()
+※ 現在の実装では
+`is_active` も併用して有効判定に使用されている
 
 ---
 
-## ■ 管理画面仕様
+## ■ 表示の仕組み（重要）
 
-dashboard.php
+表示対象 = 管理画面で選択された1件
 
-- 商品名・タイトル・説明文を主表示
-- IDは表示しない（編集画面のみ表示）
-- ラジオボタンで表示対象を選択
-- 選択時に即保存（submit不要）
-- 選択行を強調表示
+### 保存先
 
----
+DB（coupon_plans.is_display_target）
 
-## ■ coupon_save.php の仕様
+### 取得
 
-- 通常の保存のみ実施
-- 他プランの is_active を変更しない
-- 一意制御は行わない
+`find_display_target_plan()`
+
+### 表示決定
+
+`resolve_current_display_plan()`
 
 ---
 
-## ■ is_active の扱い
+## ■ 管理画面仕様（dashboard.php）
 
-現状：
+* プラン一覧を表示
+* ラジオボタンで表示対象を選択
+* 選択時に即保存（submit不要）
+* 選択行を強調表示
+* checked 判定は `is_display_target` を使用
 
-状態判定には使用しない
+---
 
-用途：
+## ■ 表示対象保存処理
 
-将来的なON/OFF制御用（現在は未使用に近い）
+`admin/display_target_save.php`
+
+* `display_plan_id` をPOSTで受信
+* `set_display_target_plan_id()` を呼び出し
+* DBの is_display_target を更新
+
+  * 全件 false → 対象のみ true
 
 ---
 
 ## ■ API構成
 
-coupon_current.php
+### coupon_current.php
 
-- 表示対象プランを返す
-- resolve_current_display_plan() 使用
-
----
-
-coupon_issue.php
-
-- クーポン発行
-- 表示対象プランを基準に発行する必要あり
+* 表示対象プランを返す
+* 内部で `resolve_current_display_plan()` を使用
 
 ---
 
-coupon_use.php
+### coupon_issue.php
 
-- クーポン使用確定
+* クーポン発行API
+* フロントから `plan_id` を受け取る
+* 指定されたプランを基準に発行する
+
+※ フロントと完全一致するため
+plan_id の明示送信が前提
+
+---
+
+### coupon_use.php
+
+* クーポン使用確定
 
 ---
 
 ## ■ フロント仕様（index.html）
 
-- 表示対象プラン取得
-- 「このクーポンを使う」で発行
-- モーダル表示
-- カウントダウン後に使用確定
+* `coupon_current.php` で表示対象取得
+* 表示中の `plan.id` を保持
+* 発行時に `plan_id` を送信
+* モーダル表示
+* カウントダウン後に使用確定
+
+---
+
+## ■ DB仕様（重要）
+
+### coupon_plans
+
+主なカラム：
+
+* id
+* title
+* product_name
+* start_at
+* end_at
+* initial_discount_rate
+* min_discount_rate
+* is_active
+* is_display_target ← 表示対象フラグ
 
 ---
 
@@ -113,21 +141,32 @@ coupon_use.php
 
 状態と表示を分離する
 
-- 状態 → システム（時間）
-- 表示 → 管理者（意思）
+* 状態 → システム（時間 + is_active）
+* 表示 → 管理者（ラジオ選択）
+* データ → DB
+
+---
+
+## ■ 現在の到達状態
+
+* 表示対象のJSON依存は廃止済み
+* DB一本化（is_display_target）
+* dashboard / API / フロントの整合が取れている
 
 ---
 
 ## ■ 今後の課題
 
-- coupon_issue.php を表示対象基準に統一
-- 不要ロジック（旧JSON系）の削除
-- UI整理
+* is_active を完全に排除し「時間のみ」に統一
+* 不要ロジックの削除（旧設計の名残）
+* UIの最適化
 
 ---
 
 ## ■ 目標
 
-見てわかる構造  
-責務が分離されている  
+見てわかる構造
+責務が分離されている
 迷わないコード
+
+---

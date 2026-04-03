@@ -292,8 +292,8 @@ foreach ($plans as $plan) {
         <div class="selection-box">
             <div class="title">フロント表示対象の選択</div>
             <div class="hint">
-                公開中のプランだけ選択できます。公開前・終了・下書き・設定不正は選択できません。<br>
-                「選択解除」を押すと未選択のまま保存できます。
+                公開中のプランが選択できます。<br>
+                
             </div>
             <input type="hidden" name="display_plan_id" id="display_plan_id" value="<?= e($selectedPlanId ?? '') ?>">
         </div>
