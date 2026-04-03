@@ -80,10 +80,10 @@ function format_datetime_value(mixed $value): string
  * - なければ未選択扱い
  */
 $selectedPlanId = null;
-if (function_exists('get_display_target_plan_id')) {
-    $selectedPlanId = get_display_target_plan_id();
-    if ($selectedPlanId !== null) {
-        $selectedPlanId = (string)$selectedPlanId;
+foreach ($plans as $plan) {
+    if (!empty($plan['is_display_target'])) {
+        $selectedPlanId = (string)($plan['id'] ?? '');
+        break;
     }
 }
 ?>
@@ -330,7 +330,7 @@ if (function_exists('get_display_target_plan_id')) {
                             $statusLabel = plan_status_label($plan, $nowTs);
                             $statusClass = dashboard_status_class($statusCode);
                             $selectable = plan_can_be_selected_for_front($plan, $nowTs);
-                            $checked = ($selectedPlanId !== null && $selectedPlanId === $planId);
+                            $checked = !empty($plan['is_display_target']);
                             ?>
                             <tr class="<?= $selectable ? '' : 'row-disabled' ?>">
                                 <td class="select-cell">

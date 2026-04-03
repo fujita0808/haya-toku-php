@@ -107,7 +107,7 @@ SQL;
         $rows = $stmt->fetchAll();
 
         $columns = array_map(
-            static fn(array $row): string => (string)$row['column_name'],
+            static fn (array $row): string => (string)$row['column_name'],
             $rows
         );
 
@@ -177,6 +177,15 @@ if (!function_exists('decode_plan_row')) {
             $plan['rules'] = [];
         }
 
+
+        $isDisplayTarget = $row['is_display_target'] ?? false;
+
+        if (is_bool($isDisplayTarget)) {
+            $plan['is_display_target'] = $isDisplayTarget;
+        } else {
+            $text = strtolower(trim((string)$isDisplayTarget));
+            $plan['is_display_target'] = in_array($text, ['1', 'true', 't', 'yes', 'on'], true);
+        }
         return $plan;
     }
 }
@@ -195,9 +204,9 @@ if (!function_exists('normalize_plan_for_save')) {
         if (is_string($rules)) {
             $lines = preg_split('/\R/u', $rules) ?: [];
             $rules = array_values(array_filter(array_map(
-                static fn(string $line): string => trim($line),
+                static fn (string $line): string => trim($line),
                 $lines
-            ), static fn(string $line): bool => $line !== ''));
+            ), static fn (string $line): bool => $line !== ''));
         }
 
         if (!is_array($rules)) {
@@ -419,7 +428,7 @@ if (!function_exists('save_plan')) {
         } else {
             $insertColumns = array_keys($filtered);
             $placeholders = array_map(
-                static fn(string $column): string => ':' . $column,
+                static fn (string $column): string => ':' . $column,
                 $insertColumns
             );
 
@@ -472,7 +481,7 @@ SQL;
         $rows = $stmt->fetchAll();
 
         $columns = array_map(
-            static fn(array $row): string => (string)$row['column_name'],
+            static fn (array $row): string => (string)$row['column_name'],
             $rows
         );
 
@@ -562,7 +571,8 @@ function find_display_target_plan(): ?array
     ");
 
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $row ?: null;
+    
+    return is_array($row) ? decode_plan_row($row) : null;
 }
 
 function set_display_target_plan_id(?string $planId): void
