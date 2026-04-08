@@ -28,7 +28,7 @@ $defaults = [
     'decay_interval_minutes' => '1440',
     'start_at' => date('Y-m-d\T00:00'),
     'end_at' => date('Y-m-d\T00:00', strtotime('+30 days')),
-    'target_revenue' => '290000000',
+    'target_revenue' => '2900000000',
     'rules' => "店頭で画面提示\n1会計1回まで\n他クーポン併用不可",
     'notes' => '',
 ];
