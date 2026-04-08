@@ -2,13 +2,13 @@
 declare(strict_types=1);
 
 /**
- * user_dashboard_sample.php（全置換版）
+ * user_dashboard_sample_chart.php（全置換版）
  *
  * 目的:
  * - 参考スプレッドシート「クーポン企画シュミレート」タブを、PHP画面として再現するためのサンプル
- * - 「クーポン企画設定値」→「シミュレーション結果」→「割引適用後価格推移グラフ」→「結果表」
+ * - 「クーポン企画設定値」→「シミュレーション結果」→「CV数と粗利益の推移グラフ」→「結果表」
  * - 同一画面内で実行・再描画
- * - 表の行に hover すると、対応するグラフの点を強調
+ * - 表の行に hover すると、対応するグラフの点/棒を強調
  *
  * 備考:
  * - 単体でプレビューできるよう、ロジックもこのファイル内に含めています
@@ -120,7 +120,8 @@ function buildSampleSimulation(array $input): array
 
     $chart = [
         'labels' => array_column($rows, 'date'),
-        'prices' => array_column($rows, 'discounted_price'),
+        'cv_counts' => array_column($rows, 'cv_count'),
+        'gross_values' => array_column($rows, 'gross'),
     ];
 
     return [
@@ -207,7 +208,7 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
     th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: center; }
     thead th { background: #f0f0f0; position: sticky; top: 0; }
     .caption { font-size: 13px; color: #666; margin-bottom: 10px; }
-    .chartWrap { position: relative; width: 100%; height: 360px; }
+    .chartWrap { position: relative; width: 100%; height: 380px; }
     .row-hover { background: #fff8db !important; }
     .tableScroll { overflow: auto; max-height: 520px; border: 1px solid #ddd; border-radius: 8px; }
     @media (max-width: 1100px) {
@@ -217,7 +218,7 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
     @media (max-width: 700px) {
       .grid, .summary { grid-template-columns: 1fr; }
       .field.wide { grid-column: span 1; }
-      .chartWrap { height: 280px; }
+      .chartWrap { height: 300px; }
     }
   </style>
 </head>
@@ -353,14 +354,14 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
       <div class="caption">参考スプレッドシート下段の結果表を意識し、日別 / ステップ別の結果行を同一画面下部に表示します。</div>
 
       <div class="card" style="margin-top:12px; background:#fcfcfc;">
-        <h2 style="margin-bottom:8px;">■ 割引適用後価格推移グラフ</h2>
-        <div class="caption">横軸：日付 / 縦軸：割引適用後価格。表の行にカーソルを合わせると、対応する点を強調します。</div>
+        <h2 style="margin-bottom:8px;">■ CV数と粗利益の推移グラフ</h2>
+        <div class="caption">棒グラフ：CV人数 / 折れ線：粗利益。結果表にカーソルを合わせると、対応する棒と点を強調します。</div>
         <div class="chartWrap">
-          <canvas id="priceChart"></canvas>
+          <canvas id="performanceChart"></canvas>
         </div>
       </div>
 
-      <div class="caption" style="margin-top:12px;">結果表にカーソルを合わせると、対応する日付のグラフ点が強調されます。</div>
+      <div class="caption" style="margin-top:12px;">結果表にカーソルを合わせると、対応する日付のグラフ要素が強調されます。</div>
 
       <div class="tableScroll">
         <table id="resultTable">
@@ -428,36 +429,51 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
   const chartSource = <?php echo $chartJson; ?>;
-  const ctx = document.getElementById('priceChart').getContext('2d');
+  const ctx = document.getElementById('performanceChart').getContext('2d');
   const rowElements = Array.from(document.querySelectorAll('#resultTable tbody tr'));
 
-  const defaultPointRadius = chartSource.prices.map(() => 4);
-  const defaultPointHoverRadius = chartSource.prices.map(() => 6);
-  const defaultPointBackgroundColor = chartSource.prices.map(() => 'rgba(54, 162, 235, 0.9)');
+  const defaultCvColors = chartSource.cv_counts.map(() => 'rgba(54, 162, 235, 0.65)');
+  const defaultGrossPointRadius = chartSource.gross_values.map(() => 4);
+  const defaultGrossPointHoverRadius = chartSource.gross_values.map(() => 6);
+  const defaultGrossPointBackgroundColor = chartSource.gross_values.map(() => 'rgba(255, 99, 132, 0.95)');
 
-  const priceChart = new Chart(ctx, {
-    type: 'line',
+  const performanceChart = new Chart(ctx, {
     data: {
       labels: chartSource.labels,
-      datasets: [{
-        label: '割引適用後価格',
-        data: chartSource.prices,
-        borderColor: 'rgba(54, 162, 235, 1)',
-        backgroundColor: 'rgba(54, 162, 235, 0.12)',
-        borderWidth: 3,
-        tension: 0.25,
-        fill: true,
-        pointRadius: defaultPointRadius.slice(),
-        pointHoverRadius: defaultPointHoverRadius.slice(),
-        pointBackgroundColor: defaultPointBackgroundColor.slice(),
-        pointBorderWidth: 1
-      }]
+      datasets: [
+        {
+          type: 'bar',
+          label: 'CV人数',
+          data: chartSource.cv_counts,
+          yAxisID: 'yCv',
+          backgroundColor: defaultCvColors.slice(),
+          borderColor: 'rgba(54, 162, 235, 1)',
+          borderWidth: 1,
+          order: 2
+        },
+        {
+          type: 'line',
+          label: '粗利益',
+          data: chartSource.gross_values,
+          yAxisID: 'yGross',
+          borderColor: 'rgba(255, 99, 132, 1)',
+          backgroundColor: 'rgba(255, 99, 132, 0.15)',
+          borderWidth: 3,
+          tension: 0.25,
+          fill: false,
+          pointRadius: defaultGrossPointRadius.slice(),
+          pointHoverRadius: defaultGrossPointHoverRadius.slice(),
+          pointBackgroundColor: defaultGrossPointBackgroundColor.slice(),
+          pointBorderWidth: 1,
+          order: 1
+        }
+      ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: {
-        mode: 'nearest',
+        mode: 'index',
         intersect: false
       },
       plugins: {
@@ -467,7 +483,10 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
         tooltip: {
           callbacks: {
             label: function(context) {
-              return ' 割引適用後価格: ¥' + Number(context.parsed.y).toLocaleString();
+              if (context.dataset.label === 'CV人数') {
+                return ' CV人数: ' + Number(context.parsed.y).toLocaleString() + '人';
+              }
+              return ' 粗利益: ¥' + Number(context.parsed.y).toLocaleString();
             }
           }
         }
@@ -479,10 +498,30 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
             text: '日付'
           }
         },
-        y: {
+        yCv: {
+          type: 'linear',
+          position: 'left',
+          beginAtZero: true,
           title: {
             display: true,
-            text: '割引適用後価格'
+            text: 'CV人数'
+          },
+          ticks: {
+            callback: function(value) {
+              return Number(value).toLocaleString();
+            }
+          }
+        },
+        yGross: {
+          type: 'linear',
+          position: 'right',
+          beginAtZero: true,
+          grid: {
+            drawOnChartArea: false
+          },
+          title: {
+            display: true,
+            text: '粗利益'
           },
           ticks: {
             callback: function(value) {
@@ -496,36 +535,45 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
 
   function clearHighlight() {
     rowElements.forEach(row => row.classList.remove('row-hover'));
-    priceChart.data.datasets[0].pointRadius = defaultPointRadius.slice();
-    priceChart.data.datasets[0].pointHoverRadius = defaultPointHoverRadius.slice();
-    priceChart.data.datasets[0].pointBackgroundColor = defaultPointBackgroundColor.slice();
-    priceChart.update('none');
+
+    performanceChart.data.datasets[0].backgroundColor = defaultCvColors.slice();
+    performanceChart.data.datasets[1].pointRadius = defaultGrossPointRadius.slice();
+    performanceChart.data.datasets[1].pointHoverRadius = defaultGrossPointHoverRadius.slice();
+    performanceChart.data.datasets[1].pointBackgroundColor = defaultGrossPointBackgroundColor.slice();
+
+    performanceChart.setActiveElements([]);
+    performanceChart.update('none');
   }
 
   function highlightIndex(index) {
     clearHighlight();
-    if (index === null || index === undefined || index < 0 || index >= rowElements.length) return;
+
+    if (index === null || index === undefined || index < 0 || index >= rowElements.length) {
+      return;
+    }
 
     rowElements[index].classList.add('row-hover');
-    priceChart.data.datasets[0].pointRadius[index] = 8;
-    priceChart.data.datasets[0].pointHoverRadius[index] = 10;
-    priceChart.data.datasets[0].pointBackgroundColor[index] = 'rgba(255, 99, 132, 1)';
-    priceChart.setActiveElements([{datasetIndex: 0, index: index}]);
-    priceChart.update('none');
+
+    performanceChart.data.datasets[0].backgroundColor[index] = 'rgba(255, 206, 86, 0.95)';
+    performanceChart.data.datasets[1].pointRadius[index] = 8;
+    performanceChart.data.datasets[1].pointHoverRadius[index] = 10;
+    performanceChart.data.datasets[1].pointBackgroundColor[index] = 'rgba(255, 159, 64, 1)';
+
+    performanceChart.setActiveElements([
+      { datasetIndex: 0, index: index },
+      { datasetIndex: 1, index: index }
+    ]);
+
+    performanceChart.update('none');
   }
 
   rowElements.forEach((row, idx) => {
     row.addEventListener('mouseenter', () => highlightIndex(idx));
-    row.addEventListener('mouseleave', () => {
-      priceChart.setActiveElements([]);
-      clearHighlight();
-    });
+    row.addEventListener('mouseleave', () => clearHighlight());
   });
 
-  document.getElementById('priceChart').addEventListener('mouseleave', () => {
+  document.getElementById('performanceChart').addEventListener('mouseleave', () => {
     clearHighlight();
-    priceChart.setActiveElements([]);
-    priceChart.update('none');
   });
 </script>
 <?php endif; ?>
