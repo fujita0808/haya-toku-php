@@ -2,33 +2,39 @@
 declare(strict_types=1);
 
 /**
- * user_dashboard_sample.php（全置換版）
+ * user_dashboard_sample.php
  *
  * 目的:
  * - 参考スプレッドシート「クーポン企画シュミレート」タブを、PHP画面として再現するためのサンプル
- * - 「クーポン企画設定値」→「シミュレーション結果」→「割引適用後価格推移グラフ」→「結果表」
- * - 同一画面内で実行・再描画
- * - 表の行に hover すると、対応するグラフの点を強調
+ * - 画面上部に「クーポン企画設定値」
+ * - 下部に「シュミレーション結果」
+ * - まずは忠実なUI構成を優先し、実行後は同一画面下部に結果を表示する
  *
- * 備考:
- * - 単体でプレビューできるよう、ロジックもこのファイル内に含めています
- * - 実運用では simulation_logic.php に分離してください
+ * 注意:
+ * - このサンプルは単体でも読めるように、仮の結果データを内包しています
+ * - 実運用では simulation_logic_sample.php を require し、simulateCouponPlan() を呼び出してください
  */
 
+// ------------------------------------------------------------
+// 仮: ログインユーザー表示
+// ------------------------------------------------------------
 $loginUserName = '店舗ユーザー（サンプル）';
 
+// ------------------------------------------------------------
+// 初期値（参考スプレッドシートに寄せたデフォルト値）
+// ------------------------------------------------------------
 $defaults = [
-    'title' => 'HONDA　CRX　RS 特別仕様車',
+    'title' => '朝得クーポン',
     'description' => '時間経過とともに割引率が減衰するクーポン企画の試算',
-    'product_name' => 'CRX DELSOL',
-    'unit_price' => '2980000',
+    'product_name' => 'テスト商品',
+    'unit_price' => '1000',
     'cost_rate' => '0.50',
     'initial_discount_rate' => '0.20',
     'min_discount_rate' => '0.10',
     'decay_interval_minutes' => '1440',
     'start_at' => date('Y-m-d\T00:00'),
     'end_at' => date('Y-m-d\T00:00', strtotime('+30 days')),
-    'target_revenue' => '15000000',
+    'target_revenue' => '10000',
     'rules' => "店頭で画面提示\n1会計1回まで\n他クーポン併用不可",
     'notes' => '',
 ];
@@ -37,6 +43,10 @@ $form = $defaults;
 $errors = [];
 $result = null;
 
+// ------------------------------------------------------------
+// 仮のシミュレーション関数
+// 実運用では lib/simulation_logic.php に分離する
+// ------------------------------------------------------------
 function buildSampleSimulation(array $input): array
 {
     $unitPrice = (int)$input['unit_price'];
@@ -84,7 +94,6 @@ function buildSampleSimulation(array $input): array
             'step' => $stepNo,
             'date' => $date->format('Y/m/d'),
             'discount_rate' => round($rate, 4),
-            'discounted_price' => $discountedPrice,
             'cv_count' => $cv,
             'revenue' => $revenue,
             'discount_value' => $discountValue,
@@ -118,11 +127,6 @@ function buildSampleSimulation(array $input): array
     }
     unset($row);
 
-    $chart = [
-        'labels' => array_column($rows, 'date'),
-        'prices' => array_column($rows, 'discounted_price'),
-    ];
-
     return [
         'summary' => [
             'duration_days' => $durationDays,
@@ -133,11 +137,13 @@ function buildSampleSimulation(array $input): array
             'total_discount' => $totalDiscount,
             'total_gross' => $totalGross,
         ],
-        'chart' => $chart,
         'rows' => $rows,
     ];
 }
 
+// ------------------------------------------------------------
+// バリデーション + 実行
+// ------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($form as $key => $defaultValue) {
         $form[$key] = isset($_POST[$key]) ? trim((string)$_POST[$key]) : $defaultValue;
@@ -171,8 +177,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($result === null && $errors === []) {
     $result = buildSampleSimulation($form);
 }
-
-$chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '{}';
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -205,11 +209,8 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
     table { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
     th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: right; white-space: nowrap; }
     th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: center; }
-    thead th { background: #f0f0f0; position: sticky; top: 0; }
+    thead th { background: #f0f0f0; }
     .caption { font-size: 13px; color: #666; margin-bottom: 10px; }
-    .chartWrap { position: relative; width: 100%; height: 360px; }
-    .row-hover { background: #fff8db !important; }
-    .tableScroll { overflow: auto; max-height: 520px; border: 1px solid #ddd; border-radius: 8px; }
     @media (max-width: 1100px) {
       .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -217,7 +218,6 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
     @media (max-width: 700px) {
       .grid, .summary { grid-template-columns: 1fr; }
       .field.wide { grid-column: span 1; }
-      .chartWrap { height: 280px; }
     }
   </style>
 </head>
@@ -352,24 +352,13 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
 
       <div class="caption">参考スプレッドシート下段の結果表を意識し、日別 / ステップ別の結果行を同一画面下部に表示します。</div>
 
-      <div class="card" style="margin-top:12px; background:#fcfcfc;">
-        <h2 style="margin-bottom:8px;">■ 割引適用後価格推移グラフ</h2>
-        <div class="caption">横軸：日付 / 縦軸：割引適用後価格。表の行にカーソルを合わせると、対応する点を強調します。</div>
-        <div class="chartWrap">
-          <canvas id="priceChart"></canvas>
-        </div>
-      </div>
-
-      <div class="caption" style="margin-top:12px;">結果表にカーソルを合わせると、対応する日付のグラフ点が強調されます。</div>
-
-      <div class="tableScroll">
-        <table id="resultTable">
+      <div style="overflow:auto;">
+        <table>
           <thead>
             <tr>
               <th>No</th>
               <th>日付</th>
               <th>割引率</th>
-              <th>割引後価格</th>
               <th>CV人数</th>
               <th>CV人数累計</th>
               <th>利用割合</th>
@@ -389,12 +378,11 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
             </tr>
           </thead>
           <tbody>
-            <?php foreach ($result['rows'] as $index => $row): ?>
-              <tr data-index="<?php echo (int)$index; ?>">
+            <?php foreach ($result['rows'] as $row): ?>
+              <tr>
                 <td><?php echo (int)$row['step']; ?></td>
                 <td><?php echo htmlspecialchars($row['date'], ENT_QUOTES, 'UTF-8'); ?></td>
                 <td><?php echo number_format((float)$row['discount_rate'] * 100, 2); ?>%</td>
-                <td><?php echo number_format((int)$row['discounted_price']); ?></td>
                 <td><?php echo number_format((int)$row['cv_count']); ?></td>
                 <td><?php echo number_format((int)$row['cumulative_cv']); ?></td>
                 <td><?php echo number_format((float)$row['cv_ratio'], 2); ?>%</td>
@@ -418,116 +406,10 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
       </div>
 
       <div class="caption" style="margin-top:12px;">
-        ※ 将来拡張として、この下に「実績入力」「差分比較」「手動再調整UI」を追加しやすい構成を想定。
+        ※ 将来拡張として、この下に「割引率曲線グラフ」「実績入力」「差分比較」「手動再調整UI」を追加しやすい構成を想定。
       </div>
     </div>
   <?php endif; ?>
 </div>
-
-<?php if ($result !== null): ?>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-  const chartSource = <?php echo $chartJson; ?>;
-  const ctx = document.getElementById('priceChart').getContext('2d');
-  const rowElements = Array.from(document.querySelectorAll('#resultTable tbody tr'));
-
-  const defaultPointRadius = chartSource.prices.map(() => 4);
-  const defaultPointHoverRadius = chartSource.prices.map(() => 6);
-  const defaultPointBackgroundColor = chartSource.prices.map(() => 'rgba(54, 162, 235, 0.9)');
-
-  const priceChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: chartSource.labels,
-      datasets: [{
-        label: '割引適用後価格',
-        data: chartSource.prices,
-        borderColor: 'rgba(54, 162, 235, 1)',
-        backgroundColor: 'rgba(54, 162, 235, 0.12)',
-        borderWidth: 3,
-        tension: 0.25,
-        fill: true,
-        pointRadius: defaultPointRadius.slice(),
-        pointHoverRadius: defaultPointHoverRadius.slice(),
-        pointBackgroundColor: defaultPointBackgroundColor.slice(),
-        pointBorderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'nearest',
-        intersect: false
-      },
-      plugins: {
-        legend: {
-          display: true
-        },
-        tooltip: {
-          callbacks: {
-            label: function(context) {
-              return ' 割引適用後価格: ¥' + Number(context.parsed.y).toLocaleString();
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          title: {
-            display: true,
-            text: '日付'
-          }
-        },
-        y: {
-          title: {
-            display: true,
-            text: '割引適用後価格'
-          },
-          ticks: {
-            callback: function(value) {
-              return '¥' + Number(value).toLocaleString();
-            }
-          }
-        }
-      }
-    }
-  });
-
-  function clearHighlight() {
-    rowElements.forEach(row => row.classList.remove('row-hover'));
-    priceChart.data.datasets[0].pointRadius = defaultPointRadius.slice();
-    priceChart.data.datasets[0].pointHoverRadius = defaultPointHoverRadius.slice();
-    priceChart.data.datasets[0].pointBackgroundColor = defaultPointBackgroundColor.slice();
-    priceChart.update('none');
-  }
-
-  function highlightIndex(index) {
-    clearHighlight();
-    if (index === null || index === undefined || index < 0 || index >= rowElements.length) return;
-
-    rowElements[index].classList.add('row-hover');
-    priceChart.data.datasets[0].pointRadius[index] = 8;
-    priceChart.data.datasets[0].pointHoverRadius[index] = 10;
-    priceChart.data.datasets[0].pointBackgroundColor[index] = 'rgba(255, 99, 132, 1)';
-    priceChart.setActiveElements([{datasetIndex: 0, index: index}]);
-    priceChart.update('none');
-  }
-
-  rowElements.forEach((row, idx) => {
-    row.addEventListener('mouseenter', () => highlightIndex(idx));
-    row.addEventListener('mouseleave', () => {
-      priceChart.setActiveElements([]);
-      clearHighlight();
-    });
-  });
-
-  document.getElementById('priceChart').addEventListener('mouseleave', () => {
-    clearHighlight();
-    priceChart.setActiveElements([]);
-    priceChart.update('none');
-  });
-</script>
-<?php endif; ?>
 </body>
 </html>
