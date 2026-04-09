@@ -437,6 +437,29 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
   const defaultGrossPointHoverRadius = chartSource.gross_values.map(() => 6);
   const defaultGrossPointBackgroundColor = chartSource.gross_values.map(() => 'rgba(255, 99, 132, 0.95)');
 
+  const verticalLinePlugin = {
+  id: 'verticalLinePlugin',
+  afterDatasetsDraw(chart, args, pluginOptions) {
+    const activeElements = chart.getActiveElements();
+    if (!activeElements || activeElements.length === 0) {
+      return;
+    }
+
+    const { ctx, chartArea, scales } = chart;
+    const activeIndex = activeElements[0].index;
+    const x = scales.x.getPixelForValue(activeIndex);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x, chartArea.top);
+    ctx.lineTo(x, chartArea.bottom);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 159, 64, 0.9)';
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
   const performanceChart = new Chart(ctx, {
     data: {
       labels: chartSource.labels,
@@ -530,7 +553,8 @@ $chartJson = $result !== null ? json_encode($result['chart'], JSON_UNESCAPED_UNI
           }
         }
       }
-    }
+    },
+    plugins: [verticalLinePlugin]
   });
 
   function clearHighlight() {
